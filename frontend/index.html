@@ -3,172 +3,337 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chat Test</title>
+  <title>Distributed Chat Application</title>
   <style>
     :root {
-      color-scheme: light;
-      --bg: #f4f1ea;
-      --panel: #fffaf3;
-      --ink: #1f1a16;
-      --muted: #6d645c;
-      --line: #e4d9cc;
-      --accent: #c45c26;
-      --ok: #2f7d4a;
-      --bad: #b42318;
+      --primary: #4338ca;
+      --primary-dark: #312e81;
+      --primary-light: #6366f1;
+      --accent: #f97316;
+      --bg: #0f172a;
+      --surface: #1e293b;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --border: rgba(148, 163, 184, 0.2);
     }
 
     * { box-sizing: border-box; }
 
     body {
       margin: 0;
-      min-height: 100vh;
-      font-family: Georgia, "Times New Roman", serif;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
       background: var(--bg);
-      color: var(--ink);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    a { color: inherit; text-decoration: none; }
+
+    .container {
+      width: min(1100px, calc(100% - 32px));
+      margin: 0 auto;
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 0;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      font-size: 1.1rem;
+    }
+
+    .logo-mark {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--primary-light), var(--accent));
       display: grid;
       place-items: center;
-      padding: 24px;
     }
 
-    .app {
-      width: min(640px, 100%);
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 24px;
-      box-shadow: 0 12px 40px rgba(31, 26, 22, 0.08);
+    .btn {
+      display: inline-block;
+      border: 0;
+      border-radius: 10px;
+      padding: 12px 20px;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.15s ease, filter 0.15s ease;
     }
 
-    h1 {
-      margin: 0 0 8px;
-      font-size: 1.7rem;
+    .btn:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.05);
     }
 
-    .status {
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary-light), var(--primary));
+      color: white;
+    }
+
+    .btn-accent {
+      background: linear-gradient(135deg, var(--accent), #ea580c);
+      color: white;
+    }
+
+    .hero {
+      padding: 72px 0 56px;
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 40px;
+      align-items: center;
+    }
+
+    .badge {
+      display: inline-block;
+      background: rgba(99, 102, 241, 0.15);
+      color: #c7d2fe;
+      border: 1px solid rgba(99, 102, 241, 0.35);
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 0.85rem;
       margin-bottom: 16px;
+    }
+
+    .hero h1 {
+      margin: 0 0 16px;
+      font-size: clamp(2.2rem, 5vw, 3.5rem);
+      line-height: 1.1;
+    }
+
+    .hero h1 span {
+      background: linear-gradient(135deg, #c7d2fe, #fdba74);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .hero p {
+      margin: 0 0 28px;
+      color: var(--muted);
+      font-size: 1.05rem;
+      max-width: 540px;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .preview {
+      background: linear-gradient(180deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.95));
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 20px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+    }
+
+    .preview-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .preview-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #64748b;
+    }
+
+    .preview-dot.live { background: #22c55e; }
+
+    .preview-title {
+      font-size: 0.9rem;
       color: var(--muted);
     }
 
-    .status.connected { color: var(--ok); }
-    .status.disconnected { color: var(--bad); }
-
-    #messages {
-      height: 360px;
-      overflow-y: auto;
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      padding: 16px;
-      background: #fff;
-      margin-bottom: 16px;
-    }
-
-    .item {
-      margin-bottom: 12px;
-    }
-
-    .item .name {
-      font-weight: 700;
-      margin-right: 6px;
-    }
-
-    .item.error {
-      color: var(--bad);
-    }
-
-    form, .username-row {
-      display: flex;
-      gap: 8px;
-    }
-
-    .username-row {
-      margin-bottom: 12px;
-    }
-
-    input {
-      flex: 1;
+    .preview-message {
+      max-width: 75%;
       padding: 10px 12px;
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      font: inherit;
+      border-radius: 12px;
+      margin-bottom: 10px;
+      font-size: 0.92rem;
     }
 
-    button {
-      border: 0;
-      border-radius: 10px;
-      background: var(--accent);
-      color: white;
-      padding: 10px 16px;
-      font: inherit;
-      cursor: pointer;
+    .preview-message.received {
+      background: #334155;
+      border-bottom-left-radius: 4px;
     }
 
-    button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
+    .preview-message.sent {
+      background: rgba(99, 102, 241, 0.25);
+      border: 1px solid rgba(99, 102, 241, 0.35);
+      margin-left: auto;
+      border-bottom-right-radius: 4px;
+    }
+
+    .features {
+      padding: 24px 0 72px;
+    }
+
+    .section-title {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .section-title h2 {
+      margin: 0 0 8px;
+      font-size: 1.8rem;
+    }
+
+    .section-title p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 18px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 22px;
+    }
+
+    .card h3 {
+      margin: 0 0 8px;
+      font-size: 1.05rem;
+    }
+
+    .card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .cta {
+      margin: 0 0 72px;
+      text-align: center;
+      background: linear-gradient(135deg, rgba(67, 56, 202, 0.35), rgba(249, 115, 22, 0.18));
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 40px 24px;
+    }
+
+    .cta h2 {
+      margin: 0 0 10px;
+      font-size: 1.8rem;
+    }
+
+    .cta p {
+      margin: 0 0 20px;
+      color: var(--muted);
+    }
+
+    footer {
+      padding: 24px 0 40px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.9rem;
+      border-top: 1px solid var(--border);
+    }
+
+    @media (max-width: 860px) {
+      .hero {
+        grid-template-columns: 1fr;
+        padding-top: 40px;
+      }
     }
   </style>
 </head>
 <body>
-  <main class="app">
-    <h1>Realtime chat</h1>
-    <div id="status" class="status disconnected">Disconnected</div>
+  <div class="container">
+    <nav class="nav">
+      <div class="logo">
+        <div class="logo-mark">💬</div>
+        <span>Distributed Chat</span>
+      </div>
+      <a class="btn btn-primary" href="chat.html">Open Chat</a>
+    </nav>
 
-    <div class="username-row">
-      <input id="username" type="text" placeholder="Username" value="Alice">
-    </div>
+    <section class="hero">
+      <div>
+        <div class="badge">Real-time · PostgreSQL · Redis Pub/Sub</div>
+        <h1>Chat that scales <span>horizontally</span></h1>
+        <p>
+          A distributed chat application built with FastAPI, WebSockets, PostgreSQL,
+          and Redis. Messages are saved, delivered in real time, and shared across
+          multiple backend servers.
+        </p>
+        <div class="hero-actions">
+          <a class="btn btn-accent" href="chat.html">Start Chatting</a>
+          <a class="btn btn-primary" data-api-status href="#">API Status</a>
+        </div>
+      </div>
 
-    <div id="messages"></div>
+      <div class="preview">
+        <div class="preview-header">
+          <span class="preview-dot live"></span>
+          <span class="preview-title">Group Chat · 3 online</span>
+        </div>
+        <div class="preview-message received">Alice: Hey, is the server running?</div>
+        <div class="preview-message sent">Yes — message saved to Postgres and broadcast via Redis.</div>
+        <div class="preview-message received">Bob is typing...</div>
+      </div>
+    </section>
 
-    <form id="chat-form">
-      <input id="message" type="text" placeholder="Type a message" autocomplete="off">
-      <button id="send" type="submit" disabled>Send</button>
-    </form>
-  </main>
+    <section class="features">
+      <div class="section-title">
+        <h2>Built for distributed messaging</h2>
+        <p>Everything you need for a modern real-time chat backend.</p>
+      </div>
+      <div class="grid">
+        <article class="card">
+          <h3>WebSocket chat</h3>
+          <p>Instant message delivery with typing indicators and online presence.</p>
+        </article>
+        <article class="card">
+          <h3>PostgreSQL storage</h3>
+          <p>Messages are persisted as the source of truth with full CRUD support.</p>
+        </article>
+        <article class="card">
+          <h3>Redis Pub/Sub</h3>
+          <p>Servers communicate through Redis so users on different instances stay in sync.</p>
+        </article>
+        <article class="card">
+          <h3>Authentication</h3>
+          <p>Register, login, and secure WebSocket connections with JWT tokens.</p>
+        </article>
+      </div>
+    </section>
 
+    <section class="cta">
+      <h2>Ready to try it?</h2>
+      <p>Open the chat app, create an account, and send your first message.</p>
+      <a class="btn btn-accent" href="chat.html">Go to Chat App</a>
+    </section>
+
+    <footer>
+      Distributed Chat Application · FastAPI backend · Frontend on GitHub Pages ready
+    </footer>
+  </div>
+
+  <script src="config.js"></script>
   <script>
-    const statusEl = document.getElementById("status");
-    const messagesEl = document.getElementById("messages");
-    const formEl = document.getElementById("chat-form");
-    const usernameEl = document.getElementById("username");
-    const messageEl = document.getElementById("message");
-    const sendEl = document.getElementById("send");
-
-    const socket = new WebSocket("ws://localhost:8000/ws");
-
-    function setStatus(connected) {
-      statusEl.textContent = connected ? "Connected" : "Disconnected";
-      statusEl.className = "status " + (connected ? "connected" : "disconnected");
-      sendEl.disabled = !connected;
-    }
-
-    function addMessage(data) {
-      const item = document.createElement("div");
-      item.className = data.error ? "item error" : "item";
-      if (data.error) {
-        item.textContent = data.error;
-      } else {
-        item.innerHTML = `<span class="name">${data.username}:</span>${data.message}`;
-      }
-      messagesEl.appendChild(item);
-      messagesEl.scrollTop = messagesEl.scrollHeight;
-    }
-
-    socket.addEventListener("open", () => setStatus(true));
-    socket.addEventListener("close", () => setStatus(false));
-    socket.addEventListener("error", () => setStatus(false));
-    socket.addEventListener("message", (event) => {
-      addMessage(JSON.parse(event.data));
-    });
-
-    formEl.addEventListener("submit", (event) => {
-      event.preventDefault();
-      const username = usernameEl.value.trim();
-      const message = messageEl.value.trim();
-      if (!username || !message || socket.readyState !== WebSocket.OPEN) return;
-
-      socket.send(JSON.stringify({ username, message }));
-      messageEl.value = "";
-      messageEl.focus();
+    document.querySelectorAll("[data-api-status]").forEach((link) => {
+      link.href = `${window.APP_CONFIG.API_BASE}/status`;
     });
   </script>
 </body>
