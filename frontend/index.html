@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat Test</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f1ea;
+      --panel: #fffaf3;
+      --ink: #1f1a16;
+      --muted: #6d645c;
+      --line: #e4d9cc;
+      --accent: #c45c26;
+      --ok: #2f7d4a;
+      --bad: #b42318;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Georgia, "Times New Roman", serif;
+      background: var(--bg);
+      color: var(--ink);
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    .app {
+      width: min(640px, 100%);
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 12px 40px rgba(31, 26, 22, 0.08);
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 1.7rem;
+    }
+
+    .status {
+      margin-bottom: 16px;
+      color: var(--muted);
+    }
+
+    .status.connected { color: var(--ok); }
+    .status.disconnected { color: var(--bad); }
+
+    #messages {
+      height: 360px;
+      overflow-y: auto;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px;
+      background: #fff;
+      margin-bottom: 16px;
+    }
+
+    .item {
+      margin-bottom: 12px;
+    }
+
+    .item .name {
+      font-weight: 700;
+      margin-right: 6px;
+    }
+
+    .item.error {
+      color: var(--bad);
+    }
+
+    form, .username-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .username-row {
+      margin-bottom: 12px;
+    }
+
+    input {
+      flex: 1;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      border-radius: 10px;
+      background: var(--accent);
+      color: white;
+      padding: 10px 16px;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <h1>Realtime chat</h1>
+    <div id="status" class="status disconnected">Disconnected</div>
+
+    <div class="username-row">
+      <input id="username" type="text" placeholder="Username" value="Alice">
+    </div>
+
+    <div id="messages"></div>
+
+    <form id="chat-form">
+      <input id="message" type="text" placeholder="Type a message" autocomplete="off">
+      <button id="send" type="submit" disabled>Send</button>
+    </form>
+  </main>
+
+  <script>
+    const statusEl = document.getElementById("status");
+    const messagesEl = document.getElementById("messages");
+    const formEl = document.getElementById("chat-form");
+    const usernameEl = document.getElementById("username");
+    const messageEl = document.getElementById("message");
+    const sendEl = document.getElementById("send");
+
+    const socket = new WebSocket("ws://localhost:8000/ws");
+
+    function setStatus(connected) {
+      statusEl.textContent = connected ? "Connected" : "Disconnected";
+      statusEl.className = "status " + (connected ? "connected" : "disconnected");
+      sendEl.disabled = !connected;
+    }
+
+    function addMessage(data) {
+      const item = document.createElement("div");
+      item.className = data.error ? "item error" : "item";
+      if (data.error) {
+        item.textContent = data.error;
+      } else {
+        item.innerHTML = `<span class="name">${data.username}:</span>${data.message}`;
+      }
+      messagesEl.appendChild(item);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    socket.addEventListener("open", () => setStatus(true));
+    socket.addEventListener("close", () => setStatus(false));
+    socket.addEventListener("error", () => setStatus(false));
+    socket.addEventListener("message", (event) => {
+      addMessage(JSON.parse(event.data));
+    });
+
+    formEl.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const username = usernameEl.value.trim();
+      const message = messageEl.value.trim();
+      if (!username || !message || socket.readyState !== WebSocket.OPEN) return;
+
+      socket.send(JSON.stringify({ username, message }));
+      messageEl.value = "";
+      messageEl.focus();
+    });
+  </script>
+</body>
+</html>
