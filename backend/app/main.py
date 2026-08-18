@@ -28,9 +28,9 @@ from app.database import (
     get_user_by_username,
     open_pool,
     postgres_status,
-    save_message,
     update_message,
 )
+from app.message_writer import message_writer
 from app.models import AuthResponse, ChatMessage, LoginRequest, RegisterRequest, UpdateMessageRequest
 from app.redis import (
     get_online_users,
@@ -97,6 +97,7 @@ async def lifespan(app: FastAPI):
     global subscriber_task
 
     await open_pool()
+    await message_writer.start()
     subscriber_task = asyncio.create_task(
         start_subscriber(manager.deliver),
         name="redis-chat-subscriber",
@@ -108,6 +109,7 @@ async def lifespan(app: FastAPI):
             await subscriber_task
         except asyncio.CancelledError:
             pass
+    await message_writer.stop()
     await close_pool()
 
 
@@ -237,6 +239,7 @@ async def status():
         "postgres": await postgres_status(),
         "redis": await redis_status(),
         "websocket_clients": len(manager.active_connections),
+        "message_writer_queue": message_writer.queue_depth,
     }
 
 
@@ -272,7 +275,7 @@ async def websocket_chat(websocket: WebSocket, token: str = Query(...)):
                 )
                 continue
 
-            saved = await save_message(username, chat_message.message)
+            saved = await message_writer.save(username, chat_message.message)
             await publish_message(saved)
     except WebSocketDisconnect:
         pass

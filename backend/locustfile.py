@@ -37,7 +37,7 @@ class AdaptiveLoadShape(LoadTestShape):
 
     min_users = _env_int("LOAD_START_USERS", 10)
     max_users = _env_int("LOAD_MAX_USERS", 100_000)
-    spawn_rate = _env_int("LOAD_SPAWN_RATE", 100)
+    spawn_rate = _env_int("LOAD_SPAWN_RATE", 5)
     max_p95_ms = _env_float("LOAD_MAX_P95_MS", 500)
     max_fail_ratio = _env_float("LOAD_MAX_FAIL_RATIO", 0.02)
     min_requests = _env_int("LOAD_MIN_REQUESTS", 50)

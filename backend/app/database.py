@@ -145,6 +145,32 @@ async def save_message(username: str, message: str) -> dict:
     return _row_to_message(row)
 
 
+async def save_messages_batch(items: list[tuple[str, str]]) -> list[dict]:
+    """Insert many messages in one round-trip to reduce Postgres overhead."""
+    assert pool is not None
+    if not items:
+        return []
+
+    placeholders = ", ".join(["(%s, %s)"] * len(items))
+    params: list[str] = []
+    for username, message in items:
+        params.extend([username, message])
+
+    async with pool.connection() as conn:
+        result = await conn.execute(
+            f"""
+            INSERT INTO messages (username, message)
+            VALUES {placeholders}
+            RETURNING id, username, message, created_at
+            """,
+            params,
+        )
+        rows = await result.fetchall()
+        await conn.commit()
+
+    return [_row_to_message(row) for row in rows]
+
+
 async def get_message_by_id(message_id: int) -> dict | None:
     assert pool is not None
     async with pool.connection() as conn:
@@ -233,6 +259,7 @@ async def postgres_status() -> dict:
             "database": POSTGRES_DB,
             "pool_size": stats.get("pool_size"),
             "pool_available": stats.get("pool_available"),
+            "pool_max": POSTGRES_POOL_MAX,
         }
     except Exception as exc:
         message = str(exc)

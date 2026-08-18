@@ -135,39 +135,59 @@ Locust runs two user types:
 | `ChatHttpUser` | Register, `GET /v1/messages`, `/v1/status`, `/v1/online` |
 | `ChatWebSocketUser` | WebSocket connect, send messages, typing events |
 
-### Adaptive load test (auto-ramp to 100k users)
+### Adaptive load test
 
-Ramps **up to 100,000 concurrent users** at **100 users/sec** while the API stays healthy. Stops increasing when p95 latency or error rate gets too high, waits, then tries again.
+Ramps concurrent users while the API stays healthy. Stops when p95 latency or errors exceed thresholds.
+
+**Local (laptop):**
 
 ```powershell
 .\load-tests\adaptive-load.ps1
+.\load-tests\adaptive-load.ps1 -Profile Local
 ```
+
+Defaults: **5 users/sec**, max **200** concurrent users.
+
+**Production design target (100,000 users/sec):**
+
+This is **not runnable on localhost**. It requires cloud deployment + distributed Locust workers.
+
+```powershell
+.\load-tests\adaptive-load.ps1 -Profile Production -HostUrl https://api.example.com
+```
+
+See [load-tests/scale-targets.md](load-tests/scale-targets.md) for the full scaling roadmap.
+
+| Profile | Spawn rate | Max users | Where to run |
+|---------|------------|-----------|--------------|
+| `Local` | 5/sec | 200 | Your laptop |
+| `Staging` | 500/sec | 10,000 | Cloud staging cluster |
+| `Production` | **100,000/sec** | 100,000 | Distributed Locust on cloud VMs |
 
 Customize:
 
 ```powershell
-.\load-tests\adaptive-load.ps1 -SpawnRate 200 -MaxUsers 100000 -MaxP95Ms 300
+.\load-tests\adaptive-load.ps1 -SpawnRate 10 -MaxUsers 500 -MaxP95Ms 300
 ```
 
 Or run directly:
 
 ```powershell
 cd backend
-$env:LOAD_SPAWN_RATE = "100"
-$env:LOAD_MAX_USERS = "100000"
-$env:LOAD_MAX_P95_MS = "500"
+$env:LOAD_SPAWN_RATE = "5"
+$env:LOAD_MAX_USERS = "200"
 locust -f locustfile.py --host=http://127.0.0.1:8000 --headless
 ```
 
-| Variable | Default | Meaning |
-|----------|---------|---------|
-| `LOAD_START_USERS` | `10` | Initial concurrent users |
-| `LOAD_MAX_USERS` | `100000` | Ceiling — stop ramping here |
-| `LOAD_SPAWN_RATE` | `100` | Users added per second while healthy |
-| `LOAD_MAX_P95_MS` | `500` | Pause ramp if p95 latency exceeds this |
-| `LOAD_MAX_FAIL_RATIO` | `0.02` | Pause ramp if failures exceed 2% |
-| `LOAD_RECOVERY_TICKS` | `15` | Seconds to hold before retrying ramp |
-| `LOAD_MAX_RUNTIME_SEC` | `3600` | Stop test after 1 hour |
+| Variable | Local default | Production target |
+|----------|---------------|-------------------|
+| `LOAD_START_USERS` | `10` | `1000` |
+| `LOAD_MAX_USERS` | `200` | `100000` |
+| `LOAD_SPAWN_RATE` | `5` | `100000` |
+| `LOAD_MAX_P95_MS` | `500` | `200` |
+| `LOAD_MAX_FAIL_RATIO` | `0.02` | `0.01` |
+| `LOAD_RECOVERY_TICKS` | `15` | `15` |
+| `LOAD_MAX_RUNTIME_SEC` | `3600` | `3600` |
 
 Watch the terminal for `[adaptive]` lines showing target users, p95, and failure rate.
 
@@ -200,7 +220,7 @@ While tests run, check [http://127.0.0.1:8000/v1/status](http://127.0.0.1:8000/v
 | WebSocket connect failures | < 1% |
 | Error rate overall | < 1% |
 
-Expected bottlenecks: **bcrypt on login/register**, **Postgres writes per chat message**, and **RAM/file descriptors** at high WebSocket counts.
+Expected bottlenecks: **bcrypt on login/register**, **Postgres writes per chat message** (mitigated by batch writer), and **RAM/file descriptors** at high WebSocket counts.
 
 ## Scalability architecture
 
@@ -233,10 +253,11 @@ Client → WebSocket → FastAPI instance
 
 - **Async Redis client** — publish/subscribe without blocking the event loop
 - **Async PostgreSQL pool** (`psycopg-pool`) — reusable connections instead of opening one per request
+- **Batched message writer** — queues chat inserts and flushes up to 25 rows every 50 ms (configurable)
 - **Index on `messages(id DESC)`** — faster history queries
-- **WebSocket handler** — `await save_message()` then `await publish_message()` on the async pool (no thread pool)
+- **WebSocket handler** — `await message_writer.save()` then `await publish_message()` (Postgres still before Redis so broadcasts carry real DB IDs)
 
-The WebSocket handler still waits for Postgres before publishing so Redis always carries persisted message IDs. That keeps PostgreSQL as the source of truth. For higher throughput you could decouple with a background queue, at the cost of stronger consistency guarantees.
+Messages are buffered and written in batches to reduce Postgres round-trips. At very high load, watch `/v1/status` → `message_writer_queue` — if it keeps growing, increase batch size or add PgBouncer/read replicas (see [load-tests/scale-targets.md](load-tests/scale-targets.md)).
 
 **Horizontal scaling:** run multiple uvicorn instances (ports 8000, 8001, …) behind nginx. All instances share the same Postgres database and Redis channel.
 
@@ -257,6 +278,8 @@ The WebSocket handler still waits for Postgres before publishing so Redis always
 
 REST API sustained **50 concurrent users with 0% errors** (p95 under 420 ms). WebSocket limits on local Windows + Locust are lower than real browser clients.
 
+**Design target:** 100,000 users/sec on horizontally scaled cloud infrastructure (see [load-tests/scale-targets.md](load-tests/scale-targets.md)). Local tests validate architecture; reaching production scale requires distributed load generators and a Kubernetes-style deployment.
+
 ## Configuration
 
 - `HOST` / `PORT` — API bind address (default `127.0.0.1:8000`)
@@ -265,6 +288,7 @@ REST API sustained **50 concurrent users with 0% errors** (p95 under 420 ms). We
 - `CORS_ORIGINS` — comma-separated frontend URLs allowed to call the API (use `*` locally)
 - `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`
 - `POSTGRES_POOL_MIN`, `POSTGRES_POOL_MAX` — async connection pool size (default `2` / `20`)
+- `MESSAGE_BATCH_SIZE`, `MESSAGE_FLUSH_MS` — batch chat inserts before flushing to Postgres (default `25` / `50`)
 - `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, `REDIS_DB`, `REDIS_CHAT_CHANNEL`
 
 Frontend API URL is configured in `frontend/config.js` (see `frontend/config.example.js` for production).
