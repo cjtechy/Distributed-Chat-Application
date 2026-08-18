@@ -1,0 +1,16 @@
+{application, chat_messaging, [
+    {description, "Erlang/OTP WebSocket messaging for Distributed Chat"},
+    {vsn, "0.1.0"},
+    {mod, {chat_messaging_app, []}},
+    {applications, [
+        kernel,
+        stdlib,
+        crypto,
+        cowboy,
+        eredis,
+        jsone
+    ]},
+    {env, [
+        {port, 8080}
+    ]}
+]}.

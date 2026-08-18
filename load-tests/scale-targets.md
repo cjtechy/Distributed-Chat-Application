@@ -32,19 +32,19 @@ Local ceiling: **~20 reliable chat users**, **50+ HTTP users**. Architecture is 
                     └────────┬────────┘
                              │
                     ┌────────▼────────┐
-                    │ Load balancer   │  nginx / AWS ALB / Cloudflare
-                    │ (WebSocket OK)  │
+                    │ Load balancer   │  HTTP → FastAPI, WS → Erlang
                     └────────┬────────┘
               ┌──────────────┼──────────────┐
               ▼              ▼              ▼
-         FastAPI x N    FastAPI x N    FastAPI x N   (auto-scaled pods)
+           FastAPI        FastAPI        Erlang/OTP
+           (HTTP/auth)    (HTTP/auth)    (WebSockets)
               │              │              │
               └──────────────┼──────────────┘
                              │
               ┌──────────────┴──────────────┐
               ▼                             ▼
       PostgreSQL cluster              Redis Cluster
-      (primary + replicas)            (Pub/Sub, not storage)
+      (primary + replicas)            (Python ↔ Erlang bus)
       + PgBouncer pool
 ```
 
@@ -52,9 +52,9 @@ Local ceiling: **~20 reliable chat users**, **50+ HTTP users**. Architecture is 
 
 | Layer | At 100k users/sec |
 |-------|-------------------|
-| **API** | 100s–1000s of FastAPI containers (Kubernetes HPA) |
+| **API** | FastAPI pods for HTTP/auth; Erlang/OTP nodes for WebSockets |
 | **Postgres** | Managed cluster, PgBouncer, read replicas, partitioning |
-| **Redis** | Redis Cluster or ElastiCache for Pub/Sub |
+| **Redis** | Redis Cluster — the only Python ↔ Erlang integration |
 | **Load balancer** | WebSocket-aware, sticky sessions optional |
 | **Load testing** | Distributed Locust / k6 Cloud / Grafana Cloud k6 |
 | **Auth** | Offload bcrypt — pre-generated tokens or external IdP at scale |

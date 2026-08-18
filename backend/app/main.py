@@ -38,6 +38,7 @@ from app.redis import (
     mark_user_online,
     publish_message,
     redis_status,
+    start_inbound_subscriber,
     start_subscriber,
 )
 
@@ -78,7 +79,7 @@ class ConnectionManager:
 
 
 manager = ConnectionManager()
-subscriber_task: asyncio.Task | None = None
+background_tasks: list[asyncio.Task] = []
 
 
 def get_current_user(authorization: str = Header(...)) -> str:
@@ -94,23 +95,46 @@ def get_current_user(authorization: str = Header(...)) -> str:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global subscriber_task
+    global background_tasks
 
     await open_pool()
     await message_writer.start()
-    subscriber_task = asyncio.create_task(
-        start_subscriber(manager.deliver),
-        name="redis-chat-subscriber",
-    )
+    background_tasks = [
+        asyncio.create_task(
+            start_subscriber(manager.deliver),
+            name="redis-chat-subscriber",
+        ),
+        asyncio.create_task(
+            start_inbound_subscriber(handle_erlang_inbound),
+            name="redis-inbound-subscriber",
+        ),
+    ]
     yield
-    if subscriber_task:
-        subscriber_task.cancel()
+    for task in background_tasks:
+        task.cancel()
+    for task in background_tasks:
         try:
-            await subscriber_task
+            await task
         except asyncio.CancelledError:
             pass
     await message_writer.stop()
     await close_pool()
+
+
+async def handle_erlang_inbound(data: dict) -> None:
+    """Persist chat text published by the Erlang messaging node."""
+    username = data.get("username")
+    if not isinstance(username, str) or not username:
+        return
+    if data.get("type") == "typing":
+        await publish_message({"type": "typing", "username": username})
+        return
+    try:
+        chat_message = ChatMessage.model_validate({"message": data.get("message")})
+    except ValidationError:
+        return
+    saved = await message_writer.save(username, chat_message.message)
+    await publish_message(saved)
 
 
 app = FastAPI(title="Distributed Chat Application", lifespan=lifespan)

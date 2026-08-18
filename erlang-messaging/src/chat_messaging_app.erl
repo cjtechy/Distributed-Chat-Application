@@ -1,0 +1,11 @@
+-module(chat_messaging_app).
+-behaviour(application).
+
+-export([start/2, stop/1]).
+
+start(_StartType, _StartArgs) ->
+    chat_config:load(),
+    chat_messaging_sup:start_link().
+
+stop(_State) ->
+    ok.

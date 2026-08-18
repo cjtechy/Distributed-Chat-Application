@@ -14,6 +14,7 @@ REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", "")
 REDIS_DB = int(os.getenv("REDIS_DB", "0"))
 REDIS_CHAT_CHANNEL = os.getenv("REDIS_CHAT_CHANNEL", "chat:messages")
+REDIS_INBOUND_CHANNEL = os.getenv("REDIS_INBOUND_CHANNEL", "chat:inbound")
 REDIS_ONLINE_KEY = os.getenv("REDIS_ONLINE_KEY", "chat:online_users")
 REDIS_URL = (
     f"redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
@@ -45,10 +46,19 @@ async def mark_user_offline(username: str) -> bool:
     return False
 
 
+async def start_inbound_subscriber(on_message: Callable[[dict], Awaitable[None]]):
+    """Accept chat text from the Erlang messaging node and persist it."""
+    await _run_subscriber(REDIS_INBOUND_CHANNEL, on_message)
+
+
 async def start_subscriber(on_message: Callable[[dict], Awaitable[None]]):
     """Listen on Redis and deliver messages to local WebSocket clients."""
+    await _run_subscriber(REDIS_CHAT_CHANNEL, on_message)
+
+
+async def _run_subscriber(channel: str, on_message: Callable[[dict], Awaitable[None]]):
     pubsub = redis_client.pubsub()
-    await pubsub.subscribe(REDIS_CHAT_CHANNEL)
+    await pubsub.subscribe(channel)
 
     try:
         while True:
@@ -65,7 +75,7 @@ async def start_subscriber(on_message: Callable[[dict], Awaitable[None]]):
             data = json.loads(incoming["data"])
             await on_message(data)
     finally:
-        await pubsub.unsubscribe(REDIS_CHAT_CHANNEL)
+        await pubsub.unsubscribe(channel)
         await pubsub.aclose()
 
 
@@ -78,6 +88,7 @@ async def redis_status():
             "port": REDIS_PORT,
             "db": REDIS_DB,
             "channel": REDIS_CHAT_CHANNEL,
+            "inbound_channel": REDIS_INBOUND_CHANNEL,
         }
     except Exception as exc:
         message = str(exc)
@@ -89,5 +100,6 @@ async def redis_status():
             "port": REDIS_PORT,
             "db": REDIS_DB,
             "channel": REDIS_CHAT_CHANNEL,
+            "inbound_channel": REDIS_INBOUND_CHANNEL,
             "error": message,
         }

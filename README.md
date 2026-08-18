@@ -1,6 +1,6 @@
 # Distributed Chat Application
 
-A real-time distributed chat application with a FastAPI backend, PostgreSQL as the source of truth, and Redis Pub/Sub for communication between multiple server instances.
+A real-time distributed chat application: FastAPI for HTTP/auth/Postgres, Redis as the service bus, and an optional Erlang/OTP node for WebSocket connections.
 
 ## Project structure
 
@@ -16,6 +16,7 @@ Distributed-Chat-Application/
 │   ├── locustfile.py       REST + WebSocket load tests (Locust)
 │   ├── requirements.txt
 │   └── requirements-dev.txt
+├── erlang-messaging/           Optional OTP WebSocket node (Cowboy + Redis)
 ├── load-tests/
 │   ├── adaptive-load.ps1   Auto-ramp load test (up to 100k users)
 │   ├── ws-load.js          WebSocket ramp-up test (k6)
@@ -27,25 +28,35 @@ Distributed-Chat-Application/
 
 ## Message flow
 
+Python-only (default, FastAPI owns WebSockets):
+
 ```
-Frontend                Server A                 PostgreSQL          Redis              Server B
-   |                       |                        |                 |                   |
-   |-- WebSocket send ---->|                        |                 |                   |
-   |                       |-- save message ------->|                 |                   |
-   |                       |<-- saved row ----------|                 |                   |
-   |                       |-- publish message --------------------->|                   |
-   |                       |<-- subscriber receives -----------------|                   |
-   |<-- deliver via WS ----|                        |                 |-- subscriber --->|
-   |                       |                        |                 |                   |-- deliver via WS --> clients
+Frontend --WS--> FastAPI --save--> PostgreSQL
+                    |
+                    +--publish--> Redis chat:messages --> other FastAPI nodes
 ```
 
-1. The frontend sends JSON over `ws://localhost:8000/v1/ws`.
-2. FastAPI validates the message and saves it to PostgreSQL.
-3. FastAPI publishes the saved message to the Redis channel `chat:messages`.
-4. Every FastAPI server subscribed to that channel receives the message.
-5. Each server delivers the message to its own connected WebSocket clients.
+With the Erlang messaging node:
 
-PostgreSQL is the source of truth. Redis is the communication layer between servers.
+```
+Frontend --HTTP (auth, history, CRUD)--> FastAPI --> PostgreSQL
+                                              ^
+Frontend --WS---------------------------> Erlang/OTP
+                                              |
+                                         Redis Pub/Sub
+                                         chat:inbound  (Erlang -> FastAPI, persist)
+                                         chat:messages (FastAPI -> all nodes, deliver)
+```
+
+1. Login/register and message history stay on FastAPI.
+2. Live connections go to Erlang (`ws://127.0.0.1:8080/v1/ws`) when `WS_BASE` is set.
+3. Erlang verifies the JWT, then publishes chat text to `chat:inbound`.
+4. FastAPI batch-writes to Postgres and republishes the saved row on `chat:messages`.
+5. Every Erlang (and FastAPI) node subscribed to `chat:messages` delivers to its local clients.
+
+Python and Erlang do not share memory or call each other in-process. Redis is the contract.
+
+If `WS_BASE` is omitted, the browser keeps using FastAPI's `/v1/ws` endpoint.
 
 ## Endpoints
 
@@ -62,7 +73,9 @@ PostgreSQL is the source of truth. Redis is the communication layer between serv
 | `DELETE /v1/messages/{id}` | Delete your own message |
 | `GET /v1/online` | List online users |
 | `GET /v1/status` | Postgres, Redis, and connected WebSocket count |
-| `WS /v1/ws?token=...` | Send and receive live chat messages (requires login) |
+| `WS /v1/ws?token=...` | FastAPI WebSocket (used when Erlang is not running) |
+| Erlang `WS /v1/ws?token=...` | OTP messaging node on port 8080 |
+| Erlang `GET /health` | Messaging node health + local connection count |
 
 ## Setup
 
@@ -95,6 +108,27 @@ To test multiple servers, start a second instance on another port:
 ```
 
 Both servers share the same Redis channel and PostgreSQL database.
+
+### Optional: Erlang/OTP messaging
+
+FastAPI can keep serving HTTP while Erlang owns WebSockets (better connection concurrency).
+
+```powershell
+.\erlang-messaging\start.ps1
+```
+
+Health: [http://127.0.0.1:8080/health](http://127.0.0.1:8080/health)
+
+Point the frontend at the node in `frontend/config.js`:
+
+```javascript
+window.APP_CONFIG = {
+  API_BASE: "http://127.0.0.1:8000/v1",
+  WS_BASE: "ws://127.0.0.1:8080/v1",
+};
+```
+
+See [erlang-messaging/README.md](erlang-messaging/README.md).
 
 ## Performance testing
 
@@ -227,27 +261,26 @@ Expected bottlenecks: **bcrypt on login/register**, **Postgres writes per chat m
 The message path is designed as an **asynchronous, non-blocking pipeline**:
 
 ```
-Client → WebSocket → FastAPI instance
-                         │
-                         ├──► PostgreSQL (persist — source of truth)
-                         └──► Redis Pub/Sub (broadcast to all instances)
-                                    │
-                         ┌──────────┴──────────┐
-                         ▼                     ▼
-                    FastAPI #1            FastAPI #2
-                         │                     │
-                         ▼                     ▼
-                    WebSocket clients     WebSocket clients
+                    Frontend
+                       │
+          ┌────────────┼────────────┐
+          ▼                         ▼
+       FastAPI                  Erlang/OTP
+       (Python)                 Messaging
+      /        \                    │
+     ▼          ▼                   │
+ PostgreSQL    Redis ◄──────────────┘
 ```
 
 **Roles:**
 
 | Component | Role |
 |-----------|------|
+| **FastAPI** | HTTP API, JWT auth, Postgres writes, inbound subscriber |
 | **PostgreSQL** | Permanent message storage |
-| **Redis Pub/Sub** | Real-time coordination between server instances |
-| **FastAPI WebSockets** | Live client connections |
-| **Load balancer** | Distributes HTTP/WebSocket traffic across instances (production) |
+| **Redis Pub/Sub** | Contract between Python and Erlang (and between nodes) |
+| **Erlang/OTP** | WebSocket connections and fan-out (optional; FastAPI WS still works) |
+| **Load balancer** | HTTP to FastAPI, WebSocket to Erlang in production |
 
 **Implementation details:**
 
@@ -255,11 +288,12 @@ Client → WebSocket → FastAPI instance
 - **Async PostgreSQL pool** (`psycopg-pool`) — reusable connections instead of opening one per request
 - **Batched message writer** — queues chat inserts and flushes up to 25 rows every 50 ms (configurable)
 - **Index on `messages(id DESC)`** — faster history queries
-- **WebSocket handler** — `await message_writer.save()` then `await publish_message()` (Postgres still before Redis so broadcasts carry real DB IDs)
+- **Python WebSocket path** — `await message_writer.save()` then `await publish_message()`
+- **Erlang path** — Cowboy WS → `chat:inbound` → FastAPI persist → `chat:messages` → OTP fan-out
 
 Messages are buffered and written in batches to reduce Postgres round-trips. At very high load, watch `/v1/status` → `message_writer_queue` — if it keeps growing, increase batch size or add PgBouncer/read replicas (see [load-tests/scale-targets.md](load-tests/scale-targets.md)).
 
-**Horizontal scaling:** run multiple uvicorn instances (ports 8000, 8001, …) behind nginx. All instances share the same Postgres database and Redis channel.
+**Horizontal scaling:** run multiple FastAPI instances for HTTP and multiple Erlang nodes for WebSockets. All share Postgres and Redis. Do not embed Erlang in the Python process.
 
 **Further optimizations (production):**
 
@@ -290,8 +324,10 @@ REST API sustained **50 concurrent users with 0% errors** (p95 under 420 ms). We
 - `POSTGRES_POOL_MIN`, `POSTGRES_POOL_MAX` — async connection pool size (default `2` / `20`)
 - `MESSAGE_BATCH_SIZE`, `MESSAGE_FLUSH_MS` — batch chat inserts before flushing to Postgres (default `25` / `50`)
 - `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, `REDIS_DB`, `REDIS_CHAT_CHANNEL`
+- `REDIS_INBOUND_CHANNEL` — Erlang → FastAPI persist path (default `chat:inbound`)
+- `ERLANG_WS_PORT` — OTP messaging listen port (default `8080`)
 
-Frontend API URL is configured in `frontend/config.js` (see `frontend/config.example.js` for production).
+Frontend URLs are in `frontend/config.js`: `API_BASE` (FastAPI) and optional `WS_BASE` (Erlang). See `frontend/config.example.js`.
 
 ## Deploy separately
 
@@ -302,9 +338,10 @@ Frontend API URL is configured in `frontend/config.js` (see `frontend/config.exa
 3. Add a repository variable **Settings → Secrets and variables → Actions → Variables**:
    - Name: `API_BASE`
    - Value: `https://api.yourdomain.com/v1`
+   - Optional: `WS_BASE` = `wss://ws.yourdomain.com/v1` (Erlang messaging node)
 4. Push to `main` (or run the **Deploy Frontend to GitHub Pages** workflow manually).
 
-The workflow in `.github/workflows/deploy-frontend.yml` deploys the `frontend/` folder and writes `config.js` with your `API_BASE`.
+The workflow in `.github/workflows/deploy-frontend.yml` deploys the `frontend/` folder and writes `config.js` with your `API_BASE` (and `WS_BASE` if set).
 
 ### Backend (API server)
 
@@ -317,7 +354,7 @@ The workflow in `.github/workflows/deploy-frontend.yml` deploys the `frontend/` 
    ```bash
    uvicorn app.main:app --host 0.0.0.0 --port 8000
    ```
-4. Point `api.yourdomain.com` at the server. WebSockets use `wss://api.yourdomain.com/v1/ws`.
+4. Point `api.yourdomain.com` at FastAPI. For Erlang messaging, run `erlang-messaging` and point `ws.yourdomain.com` (WSS) at port 8080, then set `WS_BASE`.
 
 Locally, the backend still serves the frontend at `/` and `/chat`. In production you can rely on GitHub Pages for the UI and use the backend as API-only.
 

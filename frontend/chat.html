@@ -604,6 +604,7 @@
   <script src="config.js"></script>
   <script>
     const API_BASE = window.APP_CONFIG.API_BASE;
+    const WS_BASE = window.APP_CONFIG.WS_BASE || API_BASE.replace("http", "ws");
     const authPanel = document.getElementById("auth-panel");
     const chatPanel = document.getElementById("chat-panel");
     const authForm = document.getElementById("auth-form");
@@ -921,7 +922,7 @@
     }
 
     function connectSocket() {
-      socket = new WebSocket(`${API_BASE.replace("http", "ws")}/ws?token=${encodeURIComponent(token)}`);
+      socket = new WebSocket(`${WS_BASE}/ws?token=${encodeURIComponent(token)}`);
 
       socket.addEventListener("open", async () => {
         setStatus(true);
