@@ -7,7 +7,7 @@ Members get a console (chats, group rooms, direct messages, settings). Admins ge
 ## Architecture
 
 ```
-Browser  --static HTML/CSS/JS-->  GitHub Pages (or python -m http.server)
+Browser  --static HTML/CSS/JS-->  AWS Amplify (or python -m http.server)
 
 Browser  --HTTP (auth, history, groups, inbox, calls, voice)-->  FastAPI  -->  PostgreSQL
                                                                               ^
@@ -77,7 +77,6 @@ Distributed-Chat-Application/
 │   ├── scripts/call.js        Global incoming-call overlay
 │   ├── admin.html             Admin portal
 │   └── config.js              API_BASE + WS_BASE
-├── deploy/                    EC2 userdata + backend deploy script
 └── load-tests/                Locust / k6 / hey helpers
 ```
 
@@ -261,61 +260,26 @@ Ticks: one grey = sent, two grey = delivered, two blue = viewed.
 | `TURN_URL` / `TURN_USERNAME` / `TURN_PASSWORD` | Optional TURN for calls behind strict NAT |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | Optional bootstrap admin |
 
-Frontend URLs live in `frontend/config.js`. Pages deploys overwrite that file from repo variables `API_BASE` and `WS_BASE`.
+Frontend URLs live in `frontend/config.js` (`API_BASE` and `WS_BASE`). Keep secrets in `backend/.env` on the server only — never commit them.
 
 ## Deploy
 
-### Frontend (GitHub Pages)
+### Frontend (AWS Amplify)
 
-1. Enable **Settings → Pages → GitHub Actions**.
-2. Repository variables: `API_BASE` (e.g. `https://api.yourdomain.com/v1`) and `WS_BASE` (e.g. `wss://ws.yourdomain.com/v1`).
-3. Push `main` (workflow `.github/workflows/deploy-frontend.yml`).
+Host the `frontend/` folder on Amplify. Point `frontend/config.js` at the live API and WebSocket:
 
-### Backend (EC2 + GitHub Actions)
-
-The backend is **not** deployed by Pages. Use two EC2 instances (database + logic) or adapt the scripts for your cloud.
-
-**One-time bootstrap**
-
-1. Launch a **database** instance (Ubuntu 24.04). Paste `deploy/ec2-db-userdata.sh` into user data. Note its **private IP**.
-2. Launch a **logic** instance in the same VPC. Edit `deploy/ec2-logic-userdata.sh`:
-   - `DB_PRIVATE_IP`, `API_DOMAIN`, `WS_DOMAIN`, `FRONTEND_ORIGIN` (your Pages URL), `SECRET_KEY`, passwords.
-3. Paste the edited script into user data and launch. It installs Postgres/Redis clients, FastAPI, Erlang, nginx, and Let's Encrypt.
-4. Security groups: logic instance — inbound 22, 80, 443; database — 5432 and 6379 from logic SG only.
-
-**Automated deploys (GitHub Actions)**
-
-Workflow: `.github/workflows/deploy-backend.yml` — runs on push to `main` when `backend/` or `erlang-messaging/` changes (or manually via **Actions → Deploy Backend to EC2**).
-
-Repository **secrets** (Settings → Secrets and variables → Actions):
-
-| Secret | Example |
-|--------|---------|
-| `EC2_HOST` | Public IP or `api.yourdomain.com` |
-| `EC2_SSH_KEY` | Private key (`.pem`) for the logic instance |
-| `EC2_USER` | `ubuntu` |
-| `EC2_PORT` | `22` (optional) |
-
-Optional **variable**: `APP_DIR` = `/opt/chat` (default).
-
-Optional GitHub **environment** named `production` (workflow uses it for approval gates if you enable them).
-
-Each deploy runs `deploy/deploy-backend.sh` on the server: `git pull`, `pip install`, `rebar3 compile`, restart `chat-api` + `chat-ws`, health checks.
-
-**Frontend ↔ backend wiring**
-
-Set repository variables for Pages (same as above):
-
-- `API_BASE` → `https://api.yourdomain.com/v1`
-- `WS_BASE` → `wss://ws.yourdomain.com/v1`
-
-Ensure `CORS_ORIGINS` on the server includes your Pages origin (set in `backend/.env` by userdata). Calls need HTTPS on the Pages origin so the browser allows camera and microphone.
-
-**Manual deploy** (SSH into logic instance):
-
-```bash
-bash /opt/chat/deploy/deploy-backend.sh
+```javascript
+window.APP_CONFIG = {
+  API_BASE: "https://api.yourdomain.com/v1",
+  WS_BASE: "wss://ws.yourdomain.com/v1",
+};
 ```
+
+Set `CORS_ORIGINS` on the API to the Amplify origin. Calls need HTTPS so the browser allows camera and microphone.
+
+### Backend
+
+Run FastAPI + Erlang on your own hosts (for example EC2). Keep `SECRET_KEY`, database, and Redis passwords in the server `.env`, not in this repo.
 
 **Multiple FastAPI processes:** Redis Pub/Sub delivers `chat:inbound` to every subscriber. Only **one** FastAPI process should run the inbound writer, or you will duplicate rows. Extra FastAPI instances can serve HTTP only.
 
