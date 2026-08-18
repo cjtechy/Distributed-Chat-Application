@@ -11,4 +11,4 @@ rebar3.crashdump
 .rebar3/
 erlang-messaging/.tools/
 load-tests/.load-tokens.json
-deploy/
+deploy/cloudformation-parameters.json

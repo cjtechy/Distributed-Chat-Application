@@ -1,0 +1,17 @@
+[
+  { "ParameterKey": "KeyName", "ParameterValue": "your-ec2-key" },
+  { "ParameterKey": "VpcId", "ParameterValue": "vpc-xxxxxxxx" },
+  { "ParameterKey": "SubnetId", "ParameterValue": "subnet-xxxxxxxx" },
+  { "ParameterKey": "VpcCidr", "ParameterValue": "10.0.0.0/16" },
+  { "ParameterKey": "AllowedSshCidr", "ParameterValue": "YOUR.IP.V4.0/32" },
+  { "ParameterKey": "ApiDomain", "ParameterValue": "api.example.com" },
+  { "ParameterKey": "WsDomain", "ParameterValue": "ws.example.com" },
+  { "ParameterKey": "FrontendOrigin", "ParameterValue": "https://your-amplify-app.amplifyapp.com" },
+  { "ParameterKey": "CertbotEmail", "ParameterValue": "you@example.com" },
+  { "ParameterKey": "RepoUrl", "ParameterValue": "https://github.com/cjtechy/Distributed-Chat-Application.git" },
+  { "ParameterKey": "SecretKey", "ParameterValue": "REPLACE_WITH_32_PLUS_RANDOM_CHARS" },
+  { "ParameterKey": "PostgresPassword", "ParameterValue": "REPLACE_ME" },
+  { "ParameterKey": "RedisPassword", "ParameterValue": "REPLACE_ME" },
+  { "ParameterKey": "AdminUsername", "ParameterValue": "admin" },
+  { "ParameterKey": "AdminPassword", "ParameterValue": "REPLACE_ME" }
+]
