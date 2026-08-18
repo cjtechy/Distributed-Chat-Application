@@ -615,6 +615,9 @@
     function showAuth() {
       stopReconnect();
       disconnectSocket();
+      localStorage.removeItem("token");
+      localStorage.removeItem("username");
+      localStorage.removeItem("is_admin");
       window.location.replace("/auth/login?next=" + encodeURIComponent("/console/chat?group=" + groupId));
     }
 

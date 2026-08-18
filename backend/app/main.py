@@ -217,6 +217,10 @@ async def security_headers(request: Request, call_next):
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     if request.url.path.startswith("/v1"):
         response.headers["Cache-Control"] = "no-store"
+        # Chrome/Edge "Private Network Access" gate for requests from HTTPS
+        # origins to private/loopback targets (e.g. 127.0.0.1:8000).
+        # This is separate from classic CORS and must be explicitly allowed.
+        response.headers["Access-Control-Allow-Private-Network"] = "true"
     return response
 
 api_v1 = APIRouter(prefix="/v1")

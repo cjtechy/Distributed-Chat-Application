@@ -95,6 +95,10 @@
   function loadInbox() {
     return fetch(API_BASE + "/inbox", { headers: authHeaders })
       .then(function (response) {
+        if (response.status === 401) {
+          clearSession();
+          return null;
+        }
         return response.ok ? response.json() : null;
       })
       .then(applyInbox)
@@ -120,6 +124,10 @@
 
   fetch(API_BASE + "/me", { headers: authHeaders })
     .then(function (response) {
+      if (response.status === 401) {
+        clearSession();
+        return null;
+      }
       if (!response.ok) return null;
       return response.json();
     })
