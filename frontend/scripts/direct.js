@@ -46,6 +46,17 @@
   }
 
   function chatCard(chat) {
+    if (window.chatUi) {
+      return window.chatUi.threadRow({
+        id: chat.id,
+        name: chat.name || chat.peer || "Direct",
+        unread_count: chat.unread_count,
+        last_message: chat.last_message || "Private conversation",
+        last_at: chat.last_at,
+        last_sender: chat.last_sender,
+        is_direct: true,
+      });
+    }
     var article = document.createElement("article");
     article.className = "panel-card";
     var title = document.createElement("h2");
@@ -69,6 +80,24 @@
   }
 
   function personCard(person) {
+    if (window.chatUi) {
+      var button = document.createElement("button");
+      button.className = "btn-primary";
+      button.type = "button";
+      button.textContent = "Message";
+      button.addEventListener("click", function () {
+        button.disabled = true;
+        openDirect(person.username).catch(function (err) {
+          showError(err.message);
+          button.disabled = false;
+        });
+      });
+      return window.chatUi.threadRow({
+        name: person.username,
+        last_message: "Send a private message",
+        is_direct: true,
+      }, button);
+    }
     var article = document.createElement("article");
     article.className = "panel-card";
     var title = document.createElement("h2");
@@ -93,18 +122,26 @@
   }
 
   function loadChats() {
-    return fetch(API_BASE + "/direct", { headers: headers })
+    return fetch(API_BASE + "/direct", {
+      headers: headers,
+      timeoutMs: window.chatUi ? window.chatUi.SKELETON_TIMEOUT_MS : 8000,
+    })
       .then(function (response) {
         if (!response.ok) throw new Error("Could not load direct messages.");
         return response.json();
       })
       .then(function (chats) {
         chatsEl.replaceChildren();
+        chatsEl.removeAttribute("aria-busy");
         if (!Array.isArray(chats) || !chats.length) {
-          var empty = document.createElement("p");
-          empty.className = "lead";
-          empty.textContent = "No private chats yet. Pick a member below.";
-          chatsEl.appendChild(empty);
+          chatsEl.appendChild(window.chatUi
+            ? window.chatUi.empty("No private chats yet. Pick a member below.")
+            : (function () {
+                var empty = document.createElement("p");
+                empty.className = "lead";
+                empty.textContent = "No private chats yet. Pick a member below.";
+                return empty;
+              })());
           return;
         }
         chats.forEach(function (chat) {
@@ -115,18 +152,26 @@
 
   function loadPeople() {
     if (!peopleEl) return Promise.resolve();
-    return fetch(API_BASE + "/people", { headers: headers })
+    return fetch(API_BASE + "/people", {
+      headers: headers,
+      timeoutMs: window.chatUi ? window.chatUi.SKELETON_TIMEOUT_MS : 8000,
+    })
       .then(function (response) {
         if (!response.ok) throw new Error("Could not load members.");
         return response.json();
       })
       .then(function (people) {
         peopleEl.replaceChildren();
+        peopleEl.removeAttribute("aria-busy");
         if (!Array.isArray(people) || !people.length) {
-          var empty = document.createElement("p");
-          empty.className = "lead";
-          empty.textContent = "No other members to message yet.";
-          peopleEl.appendChild(empty);
+          peopleEl.appendChild(window.chatUi
+            ? window.chatUi.empty("No other members to message yet.")
+            : (function () {
+                var empty = document.createElement("p");
+                empty.className = "lead";
+                empty.textContent = "No other members to message yet.";
+                return empty;
+              })());
           return;
         }
         people.forEach(function (person) {
@@ -157,7 +202,44 @@
     });
   }
 
-  Promise.all([loadChats(), loadPeople()]).catch(function (err) {
-    showError(err.message || "Could not load direct messages.");
-  });
+  var cancelDirectTimeout = null;
+
+  function loadDirectPage() {
+    if (window.chatUi) {
+      if (cancelDirectTimeout) cancelDirectTimeout();
+      window.chatUi.showSkeleton(chatsEl, 3);
+      if (peopleEl) window.chatUi.showSkeleton(peopleEl, 3);
+      cancelDirectTimeout = window.chatUi.armSkeletonTimeout(function () {
+        chatsEl.replaceChildren();
+        chatsEl.removeAttribute("aria-busy");
+        chatsEl.appendChild(window.chatUi.timeoutPanel("Direct chats took too long to load.", loadDirectPage));
+        if (peopleEl) {
+          peopleEl.replaceChildren();
+          peopleEl.removeAttribute("aria-busy");
+        }
+      });
+    }
+    Promise.all([loadChats(), loadPeople()])
+      .then(function () {
+        if (cancelDirectTimeout) cancelDirectTimeout();
+      })
+      .catch(function (err) {
+        if (cancelDirectTimeout) cancelDirectTimeout();
+        if (chatsEl) {
+          chatsEl.replaceChildren();
+          chatsEl.removeAttribute("aria-busy");
+        }
+        if (peopleEl) {
+          peopleEl.replaceChildren();
+          peopleEl.removeAttribute("aria-busy");
+        }
+        if (window.chatUi && chatsEl) {
+          chatsEl.appendChild(window.chatUi.timeoutPanel(err.message || "Could not load direct messages.", loadDirectPage));
+        } else {
+          showError(err.message || "Could not load direct messages.");
+        }
+      });
+  }
+
+  loadDirectPage();
 })();

@@ -2,9 +2,9 @@
 .hero-bg {
   background-image: none;
   background:
-    radial-gradient(ellipse 80% 70% at 15% 20%, rgba(255, 153, 0, 0.22), transparent 55%),
-    radial-gradient(ellipse 60% 50% at 90% 80%, rgba(61, 204, 142, 0.12), transparent 50%),
-    linear-gradient(180deg, #0a0e13 0%, #101820 100%);
+    radial-gradient(ellipse 80% 70% at 15% 20%, rgba(0, 229, 195, 0.18), transparent 55%),
+    radial-gradient(ellipse 60% 50% at 90% 80%, rgba(0, 229, 195, 0.1), transparent 50%),
+    linear-gradient(180deg, #000000 0%, #0a0a0a 100%);
   filter: none;
 }
 
@@ -20,8 +20,9 @@
 .nav-logo-mark {
   width: 42px;
   height: 42px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, var(--sky), #ea580c);
+  border-radius: 50%;
+  background: var(--sky);
+  color: var(--sky4);
   display: grid;
   place-items: center;
   font-size: 1.1rem;
@@ -44,8 +45,8 @@
 }
 
 .dc-chat-preview {
-  background: #f1f5f9;
-  color: #0f172a;
+  background: #000;
+  color: #fff;
   min-height: 380px;
   display: flex;
   flex-direction: column;
@@ -56,7 +57,7 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  background: #f1f5f9;
+  background: #000;
   min-height: 320px;
 }
 
@@ -70,29 +71,31 @@
 
 .dc-bubble {
   max-width: 84%;
-  padding: 10px 13px;
-  border-radius: 14px;
+  padding: 10px 14px;
+  border-radius: 22px;
   font-size: 0.88rem;
   line-height: 1.45;
 }
 
 .dc-bubble.them {
-  background: #fff;
-  border-bottom-left-radius: 4px;
+  background: #2a2a2a;
+  color: #fff;
+  border-bottom-left-radius: 8px;
   align-self: flex-start;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  box-shadow: none;
 }
 
 .dc-bubble.you {
-  background: #fff7ed;
-  border-bottom-right-radius: 4px;
+  background: var(--sky);
+  color: var(--sky4);
+  border-bottom-right-radius: 8px;
   align-self: flex-end;
 }
 
 .dc-bubble .who {
   font-size: 0.72rem;
   font-weight: 700;
-  color: #c2410c;
+  color: var(--sky);
   margin-bottom: 2px;
 }
 
@@ -100,23 +103,23 @@
   display: block;
   margin-top: 4px;
   font-size: 0.68rem;
-  color: #94a3b8;
+  color: #7a7a7a;
 }
 
 .dc-compose {
   display: flex;
   gap: 8px;
   padding: 12px 14px;
-  border-top: 1px solid #e2e8f0;
-  background: #fff;
+  border-top: 0;
+  background: #000;
 }
 
 .dc-compose span {
   flex: 1;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: #f1f5f9;
-  color: #94a3b8;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: #161616;
+  color: #7a7a7a;
   font-size: 0.85rem;
 }
 
@@ -125,7 +128,7 @@
   height: 40px;
   border-radius: 50%;
   background: var(--sky);
-  color: #0a1a2c;
+  color: var(--sky4);
   display: grid;
   place-items: center;
   font-style: normal;
@@ -144,7 +147,7 @@
 .dc-panel-chat {
   width: 100%;
   min-height: 360px;
-  background: #f1f5f9;
+  background: #000;
   display: flex;
   flex-direction: column;
 }

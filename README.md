@@ -1,32 +1,54 @@
 # Distributed Chat Application
 
-Real-time chat for a community: **FastAPI** for HTTP, auth, and Postgres; **Erlang/OTP** for WebSockets; **Redis** as the bus between them.
+Real-time chat for a community: a **static frontend**, **FastAPI** for HTTP, auth, and Postgres; **Erlang/OTP** for WebSockets; **Redis** as the bus between them.
 
-Members get a console (dashboard, group rooms, direct messages, settings). Admins get a portal for members, messages, and health. Live typing, presence, and WhatsApp-style ticks go through Erlang.
+Members get a console (chats, group rooms, direct messages, settings). Admins get a portal for members, messages, and health. Live typing, presence, and WhatsApp-style ticks go through Erlang. Voice notes are transcribed on the server. Audio and video calls use WebRTC, with a phone-style overlay that rings on every console screen.
 
 ## Architecture
 
 ```
-Browser  --HTTP (auth, history, groups, inbox)-->  FastAPI  -->  PostgreSQL
-                                                              ^
-Browser  --WS  /v1/ws?group=  (auth frame)  ---->  Erlang/OTP
-                                                              |
-                                                         Redis Pub/Sub
-                                                         chat:inbound   Erlang → FastAPI (persist + receipts)
-                                                         chat:messages  FastAPI → all Erlang nodes (deliver)
-                                                         chat:group:{id}:members   membership for WS rooms
-                                                         chat:online_users:{id}    presence per room
+Browser  --static HTML/CSS/JS-->  GitHub Pages (or python -m http.server)
+
+Browser  --HTTP (auth, history, groups, inbox, calls, voice)-->  FastAPI  -->  PostgreSQL
+                                                                              ^
+Browser  --WS  /v1/ws?group=  (auth frame)  ---------------->  Erlang/OTP
+                                                                              |
+                                                                         Redis Pub/Sub
+                                                                         chat:inbound   Erlang → FastAPI (persist + receipts)
+                                                                         chat:messages  FastAPI → all Erlang nodes (deliver)
+                                                                         chat:group:{id}:members   membership for WS rooms
+                                                                         chat:online_users:{id}    presence per room
+                                                                         chat:call:ring:{user}     incoming-call inbox
 ```
 
-1. Sign-in, history, groups, DMs, and unread counts stay on FastAPI + Postgres.
-2. Live sockets go to Erlang (`ws://127.0.0.1:8080/v1/ws`).
-3. Erlang checks a one-time WS ticket or JWT (first frame, not the URL) and Redis membership, then publishes chat text to `chat:inbound`.
-4. FastAPI batch-writes to Postgres and republishes the saved row on `chat:messages`.
-5. Every Erlang node subscribed to `chat:messages` fans out to clients in that room.
+1. The UI is static files in `frontend/`. FastAPI does **not** serve those pages (`/` on the API returns `{"message":"api server running"}`).
+2. Sign-in, history, groups, DMs, unread counts, transcription, and call signaling stay on FastAPI + Postgres.
+3. Live sockets go to Erlang (`ws://127.0.0.1:8080/v1/ws`).
+4. Erlang checks a one-time WS ticket or JWT (first frame, not the URL) and Redis membership, then publishes chat text to `chat:inbound`.
+5. FastAPI batch-writes to Postgres and republishes the saved row on `chat:messages`.
+6. Every Erlang node subscribed to `chat:messages` fans out to clients in that room.
 
 Redis payloads on `chat:inbound` and `chat:messages` are HMAC-signed with `SECRET_KEY`. Unsigned or bad signatures are dropped.
 
 Python and Erlang do not share memory. Redis is the contract. Typing and presence skip Postgres; receipts (`delivered` / `viewed`) go inbound so FastAPI can update the row.
+
+### Voice notes
+
+The browser records a short WAV clip and `POST`s it to `/v1/transcribe`. FastAPI runs [SpeechRecognition](https://pypi.org/project/SpeechRecognition/) (`recognize_google`) and returns text into the compose box. No Whisper, no in-browser Web Speech API.
+
+### Calls
+
+Media is **peer-to-peer WebRTC** by default (STUN; optional TURN). Set `WEBRTC_MODE=sfu` and install `aiortc` to relay media through Python.
+
+Signaling is HTTP, not a second WebSocket:
+
+1. `POST /v1/webrtc/signal` publishes `call_*` events on Redis `chat:messages`.
+2. Erlang fans those events to whoever is connected to **that room**.
+3. Invites are also written to `chat:call:ring:{username}` so a callee who is elsewhere in the app still rings.
+
+Every console page loads `call.js`, polls `GET /v1/webrtc/inbox`, and shows a full-screen overlay (Accept / Decline) above chats, groups, settings, and other rooms. Accepting from another screen opens the right chat and joins. Call events are not stored as chat messages.
+
+If both people call each other at once, one invite is kept and the other side auto-joins (glare). They connect instead of both rings dropping.
 
 ## Project structure
 
@@ -34,23 +56,28 @@ Python and Erlang do not share memory. Redis is the contract. Typing and presenc
 Distributed-Chat-Application/
 ├── backend/
 │   ├── app/
-│   │   ├── main.py            HTTP pages + /v1 API
+│   │   ├── main.py            /v1 HTTP API (no static UI)
 │   │   ├── database.py        Postgres (users, groups, DMs, messages, receipts)
-│   │   ├── redis.py           Pub/Sub, presence, membership cache
+│   │   ├── redis.py           Pub/Sub, presence, membership cache, call inbox
 │   │   ├── message_writer.py  Batched chat inserts
+│   │   ├── transcribe.py      SpeechRecognition voice-to-text
+│   │   ├── webrtc.py          ICE servers + call signal types
+│   │   ├── sfu.py             Optional aiortc media relay
 │   │   ├── auth.py            JWT + passwords
 │   │   ├── security.py        HMAC bus, cookies, rate limits
 │   │   └── models.py          Request/response shapes
 │   ├── locustfile.py          REST + WebSocket load tests
 │   ├── seed_load_users.py     Pre-register users for WS load tests
 │   └── .env.example
-├── erlang-messaging/          Cowboy WebSocket node
+├── erlang-messaging/          Cowboy WebSocket node (chat + call fan-out)
 ├── frontend/
 │   ├── index.html             Landing
 │   ├── auth/                  Sign in / register
-│   ├── console/               Dashboard, chat, groups, direct, settings
+│   ├── console/               Chats, rooms, groups, direct, settings
+│   ├── scripts/call.js        Global incoming-call overlay
 │   ├── admin.html             Admin portal
 │   └── config.js              API_BASE + WS_BASE
+├── deploy/                    EC2 userdata + backend deploy script
 └── load-tests/                Locust / k6 / hey helpers
 ```
 
@@ -58,17 +85,21 @@ Distributed-Chat-Application/
 
 ## Pages
 
+These URLs are the **static frontend**, not FastAPI.
+
 | URL | What it is |
 |-----|------------|
 | `/` | Landing |
 | `/auth/login`, `/auth/register` | Account |
-| `/console` | Dashboard |
-| `/console/chat` or `/console/chat?group=<id>` | Room (group or DM) |
+| `/console` | Chat list |
+| `/console/chat` or `/console/chat?group=<id>` | Room (group or DM); calls start here |
 | `/console/group` | Create / join groups |
 | `/console/direct` | Private chats |
 | `/console/settings` | Session details |
 | `/admin` | Admin portal (admin sign-in if needed) |
 | `/chat` | Redirects to `/console/chat` |
+
+Incoming calls overlay every `/console/*` screen. Camera and microphone need a secure context (HTTPS, or `http://127.0.0.1`).
 
 ## Setup
 
@@ -116,7 +147,7 @@ You should see `PONG`. Point `REDIS_HOST` at `127.0.0.1` if Redis is reachable f
 
 ## Run
 
-You need **both** processes.
+You need **three** processes: API, Erlang, and the static UI.
 
 **Terminal 1 — FastAPI**
 
@@ -131,11 +162,19 @@ cd backend
 .\erlang-messaging\start.ps1
 ```
 
-- App: [http://127.0.0.1:8000](http://127.0.0.1:8000)
-- Console (after sign-in): [http://127.0.0.1:8000/console](http://127.0.0.1:8000/console)
+**Terminal 3 — frontend**
+
+```powershell
+cd frontend
+python -m http.server 5500
+```
+
+- App: [http://127.0.0.1:5500](http://127.0.0.1:5500)
+- Console (after sign-in): [http://127.0.0.1:5500/console](http://127.0.0.1:5500/console)
+- API health: [http://127.0.0.1:8000/v1/health](http://127.0.0.1:8000/v1/health)
 - Erlang health: [http://127.0.0.1:8080/health](http://127.0.0.1:8080/health)
 
-`frontend/config.js`:
+`frontend/config.js` (local defaults):
 
 ```javascript
 window.APP_CONFIG = {
@@ -146,7 +185,7 @@ window.APP_CONFIG = {
 
 The first account to register becomes admin, unless `ADMIN_USERNAME` / `ADMIN_PASSWORD` in `.env` create or promote an admin on startup.
 
-Restart Erlang after changing messaging code (`start.ps1`). FastAPI `--reload` only watches `backend/`.
+Restart Erlang after changing messaging code (`start.ps1`). FastAPI `--reload` only watches `backend/`. Hard-refresh the frontend after changing JS/CSS.
 
 See [erlang-messaging/README.md](erlang-messaging/README.md).
 
@@ -161,6 +200,11 @@ Auth endpoints return a JWT. Send `Authorization: Bearer <token>` on the rest.
 | `GET /username-available` | Username check while registering |
 | `GET /me` | Current user + `is_admin` |
 | `GET /ws-ticket` | One-time 30s ticket for the Erlang WebSocket |
+| `POST /transcribe` | Voice note → text (`multipart` WAV, SpeechRecognition) |
+| `GET /webrtc/ice` | STUN/TURN servers + `p2p` / `sfu` mode |
+| `POST /webrtc/signal` | Call signaling (`call_invite`, accept, reject, hangup, SDP, ICE) |
+| `GET /webrtc/inbox` | Pending incoming call for this user (global ring) |
+| `POST /webrtc/sfu/{call_id}` | SFU offer/answer/leave (only if `WEBRTC_MODE=sfu`) |
 | `GET /groups`, `POST /groups` | List / create rooms (DMs excluded from the list) |
 | `GET /groups/{id}`, `POST /groups/{id}/join` | Room details / join |
 | `POST /groups/{id}/read` | Mark a room read (clears unread badge) |
@@ -188,7 +232,7 @@ First frame after connect (token is **not** put in the URL):
 - `Authorization: Bearer` on the handshake still works for non-browser clients.
 - Room is full → JSON `{"type":"group_full","max_users":...}` and the socket closes.
 - Client → server: `{"message":"..."}` (max 4000 characters), `{"type":"typing"}`, `{"type":"delivered","ids":[...]}`, `{"type":"viewed","ids":[...]}`.
-- Server → client: chat rows, `online` / `offline` / `online_list`, `typing`, `update`, `delete`, `delivered`, `viewed`.
+- Server → client: chat rows, `online` / `offline` / `online_list`, `typing`, `update`, `delete`, `delivered`, `viewed`, and `call_*` signaling (invite / accept / reject / hangup / offer / answer / ice) for clients **in that room**. Callees who are elsewhere in the app get the invite from `GET /webrtc/inbox`.
 
 Ticks: one grey = sent, two grey = delivered, two blue = viewed.
 
@@ -211,9 +255,13 @@ Ticks: one grey = sent, two grey = delivered, two blue = viewed.
 | `MAX_GROUP_USERS` | Max concurrent sockets per room (default `1000`) |
 | `BCRYPT_ROUNDS` | Password cost (default `12`; `4` only for load-test seeding) |
 | `ERLANG_WS_PORT` | Cowboy port (default `8080`) |
+| `TRANSCRIBE_LANGUAGE` | SpeechRecognition language (default `en-US`) |
+| `TRANSCRIBE_MAX_BYTES` | Max voice upload (default `5242880`) |
+| `WEBRTC_MODE` | `p2p` (default) or `sfu` (needs `aiortc`) |
+| `TURN_URL` / `TURN_USERNAME` / `TURN_PASSWORD` | Optional TURN for calls behind strict NAT |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | Optional bootstrap admin |
 
-Frontend URLs live in `frontend/config.js`. Production example: `frontend/config.example.js`.
+Frontend URLs live in `frontend/config.js`. Pages deploys overwrite that file from repo variables `API_BASE` and `WS_BASE`.
 
 ## Deploy
 
@@ -223,13 +271,51 @@ Frontend URLs live in `frontend/config.js`. Production example: `frontend/config
 2. Repository variables: `API_BASE` (e.g. `https://api.yourdomain.com/v1`) and `WS_BASE` (e.g. `wss://ws.yourdomain.com/v1`).
 3. Push `main` (workflow `.github/workflows/deploy-frontend.yml`).
 
-### Backend
+### Backend (EC2 + GitHub Actions)
 
-1. Deploy `backend/` with production Postgres, Redis, `SECRET_KEY`, and `CORS_ORIGINS`.
-2. Run FastAPI behind HTTPS. Run `erlang-messaging` and terminate WSS on `ERLANG_WS_PORT`.
-3. Point Pages `API_BASE` / `WS_BASE` at those hosts.
+The backend is **not** deployed by Pages. Use two EC2 instances (database + logic) or adapt the scripts for your cloud.
 
-Locally, FastAPI still serves the UI at `/` and `/console`.
+**One-time bootstrap**
+
+1. Launch a **database** instance (Ubuntu 24.04). Paste `deploy/ec2-db-userdata.sh` into user data. Note its **private IP**.
+2. Launch a **logic** instance in the same VPC. Edit `deploy/ec2-logic-userdata.sh`:
+   - `DB_PRIVATE_IP`, `API_DOMAIN`, `WS_DOMAIN`, `FRONTEND_ORIGIN` (your Pages URL), `SECRET_KEY`, passwords.
+3. Paste the edited script into user data and launch. It installs Postgres/Redis clients, FastAPI, Erlang, nginx, and Let's Encrypt.
+4. Security groups: logic instance — inbound 22, 80, 443; database — 5432 and 6379 from logic SG only.
+
+**Automated deploys (GitHub Actions)**
+
+Workflow: `.github/workflows/deploy-backend.yml` — runs on push to `main` when `backend/` or `erlang-messaging/` changes (or manually via **Actions → Deploy Backend to EC2**).
+
+Repository **secrets** (Settings → Secrets and variables → Actions):
+
+| Secret | Example |
+|--------|---------|
+| `EC2_HOST` | Public IP or `api.yourdomain.com` |
+| `EC2_SSH_KEY` | Private key (`.pem`) for the logic instance |
+| `EC2_USER` | `ubuntu` |
+| `EC2_PORT` | `22` (optional) |
+
+Optional **variable**: `APP_DIR` = `/opt/chat` (default).
+
+Optional GitHub **environment** named `production` (workflow uses it for approval gates if you enable them).
+
+Each deploy runs `deploy/deploy-backend.sh` on the server: `git pull`, `pip install`, `rebar3 compile`, restart `chat-api` + `chat-ws`, health checks.
+
+**Frontend ↔ backend wiring**
+
+Set repository variables for Pages (same as above):
+
+- `API_BASE` → `https://api.yourdomain.com/v1`
+- `WS_BASE` → `wss://ws.yourdomain.com/v1`
+
+Ensure `CORS_ORIGINS` on the server includes your Pages origin (set in `backend/.env` by userdata). Calls need HTTPS on the Pages origin so the browser allows camera and microphone.
+
+**Manual deploy** (SSH into logic instance):
+
+```bash
+bash /opt/chat/deploy/deploy-backend.sh
+```
 
 **Multiple FastAPI processes:** Redis Pub/Sub delivers `chat:inbound` to every subscriber. Only **one** FastAPI process should run the inbound writer, or you will duplicate rows. Extra FastAPI instances can serve HTTP only.
 

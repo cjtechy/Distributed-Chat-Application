@@ -26,6 +26,50 @@
   }
 
   function card(group, mine) {
+    if (window.chatUi) {
+      var extra = null;
+      if (!mine) {
+        extra = document.createElement("button");
+        extra.className = "btn-primary";
+        extra.type = "button";
+        extra.textContent = "Join";
+        extra.addEventListener("click", function () {
+          extra.disabled = true;
+          fetch(API_BASE + "/groups/" + group.id + "/join", {
+            method: "POST",
+            headers: headers,
+          })
+            .then(function (response) {
+              return response.json().then(function (data) {
+                return { ok: response.ok, data: data };
+              });
+            })
+            .then(function (result) {
+              if (!result.ok) {
+                showError(result.data.detail || "Could not join this group.");
+                extra.disabled = false;
+                return;
+              }
+              window.location.href = "/console/chat?group=" + encodeURIComponent(group.id);
+            })
+            .catch(function () {
+              showError("Could not join this group.");
+              extra.disabled = false;
+            });
+        });
+      }
+      var snippet = group.is_default ? "Default room" : ((group.member_count || 0) + " members");
+      return window.chatUi.threadRow({
+        id: mine ? group.id : null,
+        name: group.name,
+        unread_count: mine ? group.unread_count : 0,
+        last_message: group.last_message || snippet,
+        last_at: group.last_at,
+        last_sender: group.last_sender,
+        is_direct: false,
+      }, extra);
+    }
+
     var article = document.createElement("article");
     article.className = "panel-card";
 
@@ -87,22 +131,34 @@
 
   function render(groups) {
     listMine.replaceChildren();
-    if (listOther) listOther.replaceChildren();
+    listMine.removeAttribute("aria-busy");
+    if (listOther) {
+      listOther.replaceChildren();
+      listOther.removeAttribute("aria-busy");
+    }
     var mine = groups.filter(function (group) { return group.is_member && !group.is_direct; });
     var others = groups.filter(function (group) { return !group.is_member && !group.is_direct; });
     if (!mine.length) {
-      var empty = document.createElement("p");
-      empty.className = "lead";
-      empty.textContent = "You are not in any groups yet.";
+      var empty = window.chatUi
+        ? window.chatUi.empty("You are not in any groups yet.")
+        : document.createElement("p");
+      if (!window.chatUi) {
+        empty.className = "lead";
+        empty.textContent = "You are not in any groups yet.";
+      }
       listMine.appendChild(empty);
     } else {
       mine.forEach(function (group) { listMine.appendChild(card(group, true)); });
     }
     if (listOther) {
       if (!others.length) {
-        var none = document.createElement("p");
-        none.className = "lead";
-        none.textContent = "No other groups to join right now.";
+        var none = window.chatUi
+          ? window.chatUi.empty("No other groups to join right now.")
+          : document.createElement("p");
+        if (!window.chatUi) {
+          none.className = "lead";
+          none.textContent = "No other groups to join right now.";
+        }
         listOther.appendChild(none);
       } else {
         others.forEach(function (group) { listOther.appendChild(card(group, false)); });
@@ -110,15 +166,48 @@
     }
   }
 
+  var cancelGroupTimeout = null;
+
   function load() {
-    return fetch(API_BASE + "/groups", { headers: headers })
+    if (window.chatUi) {
+      if (cancelGroupTimeout) cancelGroupTimeout();
+      window.chatUi.showSkeleton(listMine, 4);
+      if (listOther) window.chatUi.showSkeleton(listOther, 3);
+      cancelGroupTimeout = window.chatUi.armSkeletonTimeout(function () {
+        listMine.replaceChildren();
+        listMine.removeAttribute("aria-busy");
+        listMine.appendChild(window.chatUi.timeoutPanel("Groups took too long to load.", load));
+        if (listOther) {
+          listOther.replaceChildren();
+          listOther.removeAttribute("aria-busy");
+        }
+      });
+    }
+    return fetch(API_BASE + "/groups", {
+      headers: headers,
+      timeoutMs: window.chatUi ? window.chatUi.SKELETON_TIMEOUT_MS : 8000,
+    })
       .then(function (response) {
         if (!response.ok) throw new Error("Could not load groups.");
         return response.json();
       })
-      .then(render)
+      .then(function (groups) {
+        if (cancelGroupTimeout) cancelGroupTimeout();
+        render(groups);
+      })
       .catch(function (err) {
-        showError(err.message || "Could not load groups.");
+        if (cancelGroupTimeout) cancelGroupTimeout();
+        listMine.replaceChildren();
+        listMine.removeAttribute("aria-busy");
+        if (listOther) {
+          listOther.replaceChildren();
+          listOther.removeAttribute("aria-busy");
+        }
+        if (window.chatUi) {
+          listMine.appendChild(window.chatUi.timeoutPanel(err.message || "Could not load groups.", load));
+        } else {
+          showError(err.message || "Could not load groups.");
+        }
       });
   }
 

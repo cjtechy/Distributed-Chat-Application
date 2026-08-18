@@ -4,7 +4,7 @@
 
 -define(MAX_MESSAGE_CHARS, 4000).
 -define(AUTH_TIMEOUT_MS, 5000).
--define(WS_OPTS, #{idle_timeout => 600000, max_frame_size => 65536}).
+-define(WS_OPTS, #{idle_timeout => 600000, max_frame_size => 262144}).
 
 init(Req, _State) ->
     Qs = cowboy_req:parse_qs(Req),
@@ -101,6 +101,17 @@ websocket_handle({text, Raw}, #{username := Username, group_id := GroupId} = Sta
             chat_redis:publish(chat_config:chat_channel(),
                 jsone:encode(#{type => typing, username => Username, group_id => GroupId})),
             {ok, State};
+        #{<<"type">> := Type} = Call when
+                Type =:= <<"call_invite">>;
+                Type =:= <<"call_accept">>;
+                Type =:= <<"call_reject">>;
+                Type =:= <<"call_hangup">>;
+                Type =:= <<"call_offer">>;
+                Type =:= <<"call_answer">>;
+                Type =:= <<"call_ice">>;
+                Type =:= <<"call_sfu_answer">> ->
+            publish_call(Type, Call, Username, GroupId),
+            {ok, State};
         #{<<"type">> := Type} = Receipt when Type =:= <<"viewed">>; Type =:= <<"delivered">> ->
             case receipt_ids(Receipt) of
                 [] ->
@@ -182,6 +193,36 @@ message_ok(Message) ->
     case unicode:characters_to_list(Message) of
         List when is_list(List) -> length(List) =< ?MAX_MESSAGE_CHARS;
         _ -> false
+    end.
+
+publish_call(Type, Msg, Username, GroupId) ->
+    CallId = maps:get(<<"call_id">>, Msg, <<>>),
+    case is_binary(CallId) andalso byte_size(CallId) > 0 andalso byte_size(CallId) =< 80 of
+        false ->
+            ok;
+        true ->
+            Out = #{
+                type => Type,
+                call_id => CallId,
+                from => Username,
+                username => Username,
+                group_id => GroupId
+            },
+            Out1 = copy_optional(Msg, Out, [
+                {<<"to">>, to},
+                {<<"media">>, media},
+                {<<"sdp">>, sdp},
+                {<<"candidate">>, candidate}
+            ]),
+            chat_redis:publish(chat_config:chat_channel(), jsone:encode(Out1))
+    end.
+
+copy_optional(_Src, Dest, []) ->
+    Dest;
+copy_optional(Src, Dest, [{BinKey, AtomKey} | Rest]) ->
+    case maps:get(BinKey, Src, undefined) of
+        undefined -> copy_optional(Src, Dest, Rest);
+        Value -> copy_optional(Src, Dest#{AtomKey => Value}, Rest)
     end.
 
 parse_group_id(Value) when is_integer(Value), Value > 0 ->

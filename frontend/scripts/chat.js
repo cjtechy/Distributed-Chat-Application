@@ -19,10 +19,21 @@
     const logoutBtn = document.getElementById("logout");
     const adminLink = document.getElementById("admin-link");
     const statusEl = document.getElementById("status");
+    const connectionStatusEl = document.getElementById("connection-status");
+    const messagesEmptyEl = document.getElementById("messages-empty");
+    const messagesSkeletonEl = document.getElementById("messages-skeleton");
+    const chatHeaderEl = document.getElementById("chat-header");
+    const skeletonMarkup = messagesSkeletonEl ? messagesSkeletonEl.innerHTML : "";
+    let skeletonTimeoutClear = null;
     const messagesEl = document.getElementById("messages");
+    const messagesListEl = document.getElementById("messages-list");
+    const messagesAnchorEl = document.getElementById("messages-anchor");
+    const scrollBottomBtn = document.getElementById("scroll-bottom-btn");
+    const scrollBottomCount = document.getElementById("scroll-bottom-count");
     const chatForm = document.getElementById("chat-form");
     const messageEl = document.getElementById("message");
     const sendEl = document.getElementById("send");
+    const voiceBtn = document.getElementById("voice-btn");
     const typingEl = document.getElementById("typing-indicator");
     const onlineListEl = document.getElementById("online-list");
     if (groupBlurbEl) groupBlurbEl.textContent = "Opening room…";
@@ -35,9 +46,24 @@
     let reconnectLoopTimer = null;
     let reconnectOfflineTimer = null;
     let reconnectStartedAt = 0;
+    let recoveryTimer = null;
+    let apiOffline = false;
+    let recoveryBusy = false;
     let manualDisconnect = false;
+    let wasDisconnected = false;
+    let connectionState = "connecting";
+    let presenceText = "";
+    let currentIsDirect = false;
+    let currentPeer = "";
+    let backOnlineTimer = null;
     const RECONNECT_INTERVAL_MS = 3000;
     const RECONNECT_TIMEOUT_MS = 12000;
+    const RECOVERY_INTERVAL_MS = 5000;
+    const SCROLL_NEAR_PX = 96;
+    const MESSAGE_GROUP_GAP_MS = 2 * 60 * 1000;
+    let stickToBottom = true;
+    let unreadBelow = 0;
+    let scrollRaf = null;
     const typingUsers = new Map();
     const onlineUsers = new Set();
     const pendingMessages = new Map();
@@ -81,6 +107,302 @@
       return String(detail);
     }
 
+    function isNetworkError(error) {
+      if (!error) return false;
+      if (error.name === "TimeoutError") return true;
+      return error instanceof TypeError;
+    }
+
+    function networkErrorMessage(error) {
+      if (error?.name === "TimeoutError") return "Taking longer than usual — still trying…";
+      if (isNetworkError(error)) return "Reconnecting to the server…";
+      return error?.message || "Could not reach the server.";
+    }
+
+    function isConnectionNoise(text) {
+      const value = String(text || "").toLowerCase();
+      return (
+        /reconnect|failed to fetch|could not reach|taking longer|network|server is not configured|database offline/.test(value)
+      );
+    }
+
+    function setConnectionState(state, message) {
+      connectionState = state;
+      if (connectionStatusEl) connectionStatusEl.dataset.state = state;
+      if (statusEl && message != null) statusEl.textContent = message;
+    }
+
+    function showBackOnline() {
+      if (backOnlineTimer) {
+        clearTimeout(backOnlineTimer);
+        backOnlineTimer = null;
+      }
+      setConnectionState("back", "Back online");
+      backOnlineTimer = setTimeout(() => {
+        backOnlineTimer = null;
+        if (connectionState === "back") {
+          connectionState = "connected";
+          if (connectionStatusEl) connectionStatusEl.dataset.state = "connected";
+          if (statusEl) statusEl.textContent = presenceText || "Connected";
+        }
+      }, 2200);
+    }
+
+    function restoreMessageSkeleton() {
+      if (!messagesSkeletonEl || !skeletonMarkup) return;
+      messagesSkeletonEl.classList.remove("is-timeout");
+      if (!messagesSkeletonEl.querySelector(".sk-bubble")) {
+        messagesSkeletonEl.innerHTML = skeletonMarkup;
+      }
+    }
+
+    function showHistorySkeletonTimeout() {
+      if (!messagesSkeletonEl) {
+        setHistoryLoading(false);
+        return;
+      }
+      messagesSkeletonEl.classList.remove("is-hidden");
+      messagesSkeletonEl.classList.add("is-timeout");
+      messagesSkeletonEl.replaceChildren();
+      const panel = window.chatUi && window.chatUi.timeoutPanel
+        ? window.chatUi.timeoutPanel("This chat took too long to load.", () => {
+            restoreMessageSkeleton();
+            showChat();
+          })
+        : null;
+      if (panel) messagesSkeletonEl.appendChild(panel);
+      if (messagesEmptyEl) messagesEmptyEl.classList.add("is-hidden");
+      if (chatHeaderEl) chatHeaderEl.classList.remove("is-loading");
+    }
+
+    function setHistoryLoading(loading) {
+      if (skeletonTimeoutClear) {
+        skeletonTimeoutClear();
+        skeletonTimeoutClear = null;
+      }
+      if (
+        !loading &&
+        messagesSkeletonEl &&
+        messagesSkeletonEl.classList.contains("is-timeout") &&
+        !(messagesListEl && messagesListEl.querySelector(".message-row, .system-message"))
+      ) {
+        return;
+      }
+      if (loading) {
+        restoreMessageSkeleton();
+        if (window.chatUi && window.chatUi.armSkeletonTimeout) {
+          skeletonTimeoutClear = window.chatUi.armSkeletonTimeout(showHistorySkeletonTimeout);
+        }
+      }
+      if (messagesSkeletonEl) {
+        messagesSkeletonEl.classList.toggle("is-hidden", !loading);
+        if (!loading) messagesSkeletonEl.classList.remove("is-timeout");
+      }
+      if (loading && messagesEmptyEl) {
+        messagesEmptyEl.classList.add("is-hidden");
+      }
+      if (!loading) updateEmptyState();
+    }
+
+    function updateEmptyState() {
+      if (!messagesEmptyEl || !messagesListEl) return;
+      if (messagesSkeletonEl && !messagesSkeletonEl.classList.contains("is-hidden")) {
+        messagesEmptyEl.classList.add("is-hidden");
+        return;
+      }
+      const hasContent = messagesListEl.querySelector(".message-row, .system-message");
+      messagesEmptyEl.classList.toggle("is-hidden", Boolean(hasContent));
+    }
+
+    function isNearBottom(threshold = SCROLL_NEAR_PX) {
+      if (!messagesEl) return true;
+      return messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight <= threshold;
+    }
+
+    function updateScrollBottomBtn() {
+      if (!scrollBottomBtn) return;
+      const show = !stickToBottom;
+      scrollBottomBtn.hidden = !show;
+      scrollBottomBtn.classList.toggle("is-visible", show);
+      if (scrollBottomCount) {
+        const showCount = show && unreadBelow > 0;
+        scrollBottomCount.hidden = !showCount;
+        scrollBottomCount.textContent = unreadBelow > 99 ? "99+" : String(unreadBelow);
+      }
+    }
+
+    function scrollToBottom({ smooth = true, force = false } = {}) {
+      if (!messagesEl) return;
+      if (!force && !stickToBottom) return;
+      stickToBottom = true;
+      unreadBelow = 0;
+      updateScrollBottomBtn();
+      const behavior = smooth ? "smooth" : "instant";
+      if (messagesAnchorEl?.scrollIntoView) {
+        messagesAnchorEl.scrollIntoView({ behavior, block: "end" });
+        return;
+      }
+      messagesEl.scrollTo({ top: messagesEl.scrollHeight, behavior });
+    }
+
+    function queueScrollToBottom(options = {}) {
+      if (scrollRaf) cancelAnimationFrame(scrollRaf);
+      scrollRaf = requestAnimationFrame(() => {
+        scrollRaf = null;
+        scrollToBottom(options);
+      });
+    }
+
+    function afterIncomingMessage({ isOwn = false, force = false } = {}) {
+      applyMessageGrouping();
+      if (force || isOwn || stickToBottom || isNearBottom()) {
+        queueScrollToBottom({ smooth: !force, force: true });
+        return;
+      }
+      unreadBelow += 1;
+      updateScrollBottomBtn();
+    }
+
+    function onMessagesScroll() {
+      if (!messagesEl) return;
+      if (isNearBottom()) {
+        stickToBottom = true;
+        unreadBelow = 0;
+      } else {
+        stickToBottom = false;
+      }
+      updateScrollBottomBtn();
+    }
+
+    function applyMessageGrouping() {
+      if (!messagesListEl) return;
+      const rows = [...messagesListEl.querySelectorAll(".message-row")];
+      rows.forEach((row, index) => {
+        row.classList.remove("group-first", "group-middle", "group-last", "group-single");
+        const prev = rows[index - 1];
+        const next = rows[index + 1];
+        const user = row.dataset.username || "";
+        const time = Date.parse(row.dataset.createdAt || "");
+        const prevTime = prev ? Date.parse(prev.dataset.createdAt || "") : NaN;
+        const nextTime = next ? Date.parse(next.dataset.createdAt || "") : NaN;
+        const continuesPrev =
+          prev &&
+          prev.dataset.username === user &&
+          Number.isFinite(time) &&
+          Number.isFinite(prevTime) &&
+          time - prevTime < MESSAGE_GROUP_GAP_MS;
+        const continuesNext =
+          next &&
+          next.dataset.username === user &&
+          Number.isFinite(time) &&
+          Number.isFinite(nextTime) &&
+          nextTime - time < MESSAGE_GROUP_GAP_MS;
+
+        if (!continuesPrev && !continuesNext) row.classList.add("group-single");
+        else if (!continuesPrev && continuesNext) row.classList.add("group-first");
+        else if (continuesPrev && continuesNext) row.classList.add("group-middle");
+        else row.classList.add("group-last");
+
+        const senderEl = row.querySelector(".sender");
+        if (senderEl) senderEl.hidden = continuesPrev;
+      });
+    }
+
+    function stopRecoveryLoop() {
+      if (recoveryTimer) {
+        clearInterval(recoveryTimer);
+        recoveryTimer = null;
+      }
+    }
+
+    function markApiOffline(message) {
+      apiOffline = true;
+      wasDisconnected = true;
+      const detail =
+        reconnectStartedAt && Date.now() - reconnectStartedAt >= RECONNECT_TIMEOUT_MS
+          ? "Connection paused — we'll retry automatically"
+          : message || "Reconnecting…";
+      const state =
+        reconnectStartedAt && Date.now() - reconnectStartedAt >= RECONNECT_TIMEOUT_MS
+          ? "offline"
+          : "reconnecting";
+      setConnectionState(state, detail);
+      startRecoveryLoop();
+    }
+
+    function markApiOnline() {
+      apiOffline = false;
+      stopRecoveryLoop();
+    }
+
+    async function checkApiHealth() {
+      if (!API_BASE) return false;
+      try {
+        const response = await fetch(`${API_BASE}/health`, { timeoutMs: 5000 });
+        if (!response.ok) return false;
+        const data = await response.json();
+        return Boolean(data.ok);
+      } catch {
+        return false;
+      }
+    }
+
+    async function attemptRecovery() {
+      if (recoveryBusy || manualDisconnect || !token || !chatPanel?.classList.contains("active")) {
+        return false;
+      }
+
+      recoveryBusy = true;
+      try {
+        const healthy = await checkApiHealth();
+        if (!healthy) {
+          setConnectionState("reconnecting", reconnectStatusMessage());
+          return false;
+        }
+
+        markApiOnline();
+        await resolveGroupId();
+        const group = await loadGroup();
+        if (!group) return false;
+
+        try {
+          await loadHistory({ replace: true });
+        } catch (error) {
+          if (isNetworkError(error)) {
+            markApiOffline(networkErrorMessage(error));
+            return false;
+          }
+        }
+
+        if (!socket || socket.readyState !== WebSocket.OPEN) {
+          connectSocket(true);
+        } else {
+          setStatus(true);
+        }
+
+        for (const [id, pending] of pendingMessages) {
+          if (pending.status === "failed" || pending.status === "sending" || pending.status === "retrying") {
+            sendPending(id, { retrying: true });
+          }
+        }
+        return true;
+      } catch (error) {
+        if (isNetworkError(error)) {
+          markApiOffline(networkErrorMessage(error));
+        }
+        return false;
+      } finally {
+        recoveryBusy = false;
+      }
+    }
+
+    function startRecoveryLoop() {
+      if (recoveryTimer || manualDisconnect) return;
+      recoveryTimer = setInterval(() => {
+        attemptRecovery().catch(() => {});
+      }, RECOVERY_INTERVAL_MS);
+    }
+
     function formatTime(isoString) {
       if (!isoString) return "";
       const date = new Date(isoString);
@@ -97,14 +419,16 @@
 
     function reconnectStatusMessage() {
       if (reconnectStartedAt && Date.now() - reconnectStartedAt >= RECONNECT_TIMEOUT_MS) {
-        return "Chat subsystem currently offline";
+        return "Still reconnecting — hang tight";
       }
-      return "Reconnecting...";
+      return "Reconnecting…";
     }
 
     function stopReconnect() {
       manualDisconnect = true;
       stopReconnectLoop();
+      stopRecoveryLoop();
+      markApiOnline();
     }
 
     function stopReconnectLoop() {
@@ -125,14 +449,15 @@
       }
 
       reconnectStartedAt = Date.now();
-      setStatus(false, "Reconnecting...");
+      wasDisconnected = true;
+      setStatus(false, "Reconnecting…", "reconnecting");
       connectSocket(true);
 
       reconnectOfflineTimer = setTimeout(() => {
         if (manualDisconnect || (socket && socket.readyState === WebSocket.OPEN)) {
           return;
         }
-        setStatus(false, "Chat subsystem currently offline");
+        setStatus(false, "Still reconnecting — hang tight", "offline");
       }, RECONNECT_TIMEOUT_MS);
 
       reconnectLoopTimer = setInterval(() => {
@@ -170,35 +495,60 @@
       }
 
       if (others.length === 0) {
-        statusEl.textContent = "Online — waiting for others";
-        return;
+        presenceText = currentIsDirect ? "offline" : (username ? "You're the only one here" : "No one online");
+      } else if (currentIsDirect) {
+        presenceText = "Active Now";
+      } else if (others.length === 1) {
+        presenceText = `${others[0]} is online`;
+      } else {
+        presenceText = `${others.length} people online`;
       }
-      if (others.length === 1) {
-        statusEl.textContent = `${others[0]} is online`;
-        return;
+
+      if (connectionState === "connected" && statusEl) {
+        statusEl.textContent = presenceText;
       }
-      statusEl.textContent = `${others.length} people online`;
     }
 
-    function setStatus(connected, message) {
-      if (statusEl) {
-        statusEl.classList.toggle("disconnected", !connected);
-        if (!connected) {
-          statusEl.textContent = message || "Connecting...";
+    function setStatus(connected, message, mode) {
+      if (connected) {
+        markApiOnline();
+        if (wasDisconnected) {
+          showBackOnline();
+          wasDisconnected = false;
         } else {
-          updateOnlineList();
+          connectionState = "connected";
+          if (connectionStatusEl) connectionStatusEl.dataset.state = "connected";
+        }
+        updateOnlineList();
+      } else if (statusEl || connectionStatusEl) {
+        wasDisconnected = true;
+        if (mode === "connecting") {
+          setConnectionState("connecting", message || "Connecting…");
+        } else if (mode === "offline") {
+          setConnectionState("offline", message || "Connection paused");
+        } else if (mode === "error") {
+          setConnectionState("error", message || "Connection issue");
+        } else {
+          const detail = message || reconnectStatusMessage();
+          const state =
+            reconnectStartedAt && Date.now() - reconnectStartedAt >= RECONNECT_TIMEOUT_MS
+              ? "offline"
+              : "reconnecting";
+          setConnectionState(state, detail);
         }
       }
       if (sendEl) sendEl.disabled = false;
+      if (window.ChatCall) window.ChatCall.setConnected(Boolean(connected));
     }
 
     function addSystemMessage(text) {
-      if (!messagesEl) return;
+      if (!messagesListEl || isConnectionNoise(text) || apiOffline || reconnectLoopTimer) return;
       const item = document.createElement("div");
       item.className = "system-message";
       item.textContent = text;
-      messagesEl.appendChild(item);
-      messagesEl.scrollTop = messagesEl.scrollHeight;
+      messagesListEl.appendChild(item);
+      afterIncomingMessage({ force: stickToBottom });
+      updateEmptyState();
     }
 
     function isProtocolError(text) {
@@ -321,9 +671,11 @@
       if (!row) {
         row = document.createElement("div");
         row.id = `message-${data.id}`;
-        messagesEl.appendChild(row);
+        messagesListEl.appendChild(row);
       }
 
+      row.dataset.username = data.username || "";
+      row.dataset.createdAt = data.created_at || "";
       row.className = `message-row ${isOwn ? "sent" : "received"}`;
       if (isPendingStatus(status)) {
         row.classList.add("pending");
@@ -359,7 +711,8 @@
         queueDelivered(data.id);
         if (document.visibilityState === "visible") markRoomRead();
       }
-      messagesEl.scrollTop = messagesEl.scrollHeight;
+      afterIncomingMessage({ isOwn, force: isOwn });
+      updateEmptyState();
     }
 
     function markPending(id, status) {
@@ -424,7 +777,7 @@
     }
 
     function reconcilePendingFromHistory() {
-      const confirmed = [...messagesEl.querySelectorAll(".message-row.sent:not(.pending) .text")].map(
+      const confirmed = [...messagesListEl.querySelectorAll(".message-row.sent:not(.pending) .text")].map(
         (el) => el.textContent
       );
       for (const [id, pending] of [...pendingMessages]) {
@@ -448,6 +801,7 @@
     function removeMessage(messageId) {
       const item = document.getElementById(`message-${messageId}`);
       if (item) item.remove();
+      updateEmptyState();
     }
 
     async function editMessage(messageId) {
@@ -455,7 +809,14 @@
       if (!item) return;
 
       const currentText = item.querySelector(".text")?.textContent || "";
-      const newText = prompt("Edit your message:", currentText);
+      const newText = window.appPrompt
+        ? await window.appPrompt({
+            title: "Edit message",
+            body: "Change the text everyone will see.",
+            value: currentText,
+            confirmLabel: "Save",
+          })
+        : prompt("Edit your message:", currentText);
       if (newText === null) return;
 
       const trimmed = newText.trim();
@@ -480,7 +841,15 @@
     }
 
     async function deleteMessageById(messageId) {
-      if (!confirm("Delete this message for everyone?")) return;
+      const ok = window.appConfirm
+        ? await window.appConfirm({
+            title: "Delete message?",
+            body: "This removes it for everyone in the chat.",
+            confirmLabel: "Delete",
+            danger: true,
+          })
+        : confirm("Delete this message for everyone?");
+      if (!ok) return;
 
       const response = await fetch(`${API_BASE}/messages/${messageId}`, {
         method: "DELETE",
@@ -503,10 +872,11 @@
         return;
       }
       if (names.length === 1) {
-        typingEl.textContent = `${names[0]} is typing...`;
-        return;
+        typingEl.textContent = `${names[0]} is typing…`;
+      } else {
+        typingEl.textContent = `${names.join(", ")} are typing…`;
       }
-      typingEl.textContent = `${names.join(", ")} are typing...`;
+      if (stickToBottom) queueScrollToBottom({ smooth: true, force: true });
     }
 
     function showTyping(name) {
@@ -538,9 +908,13 @@
     }
 
     function handleSocketMessage(data) {
+      if (data.type && String(data.type).startsWith("call_")) {
+        if (window.ChatCall) window.ChatCall.handle(data);
+        return;
+      }
       if (data.type === "error") {
         stopReconnect();
-        setStatus(false, data.error || "Not allowed in this room.");
+        setStatus(false, data.error || "Not allowed in this room.", "error");
         addSystemMessage(data.error || "Connection rejected.");
         disconnectSocket();
         return;
@@ -570,6 +944,7 @@
       if (data.type === "offline") {
         onlineUsers.delete(data.username);
         updateOnlineList();
+        if (window.ChatCall) window.ChatCall.onPeerOffline(data.username);
         return;
       }
       if (data.type === "typing") {
@@ -614,6 +989,7 @@
 
     function showAuth() {
       stopReconnect();
+      if (window.ChatCall) window.ChatCall.hangup();
       disconnectSocket();
       localStorage.removeItem("token");
       localStorage.removeItem("username");
@@ -624,9 +1000,18 @@
     function applyGroup(group) {
       const name = group && group.name ? group.name : "Group";
       const isDirect = Boolean(group && group.is_direct);
+      currentIsDirect = isDirect;
+      currentPeer = isDirect ? (group && (group.peer || group.name) ? (group.peer || group.name) : "") : "";
       document.body.classList.toggle("direct-chat", isDirect);
       if (groupNameEl) groupNameEl.textContent = name;
       if (groupHeadingEl) groupHeadingEl.textContent = name;
+      if (userAvatar) {
+        userAvatar.textContent = name.charAt(0).toUpperCase();
+        let hue = 0;
+        for (const ch of name) hue = (hue * 33 + ch.charCodeAt(0)) % 360;
+        userAvatar.style.background = `hsl(${hue}, 42%, 36%)`;
+        userAvatar.style.color = "#fff";
+      }
       if (groupTagEl) {
         groupTagEl.textContent = isDirect ? "Direct message" : (group && group.is_default ? "Default room" : "Group");
       }
@@ -638,9 +1023,10 @@
             : `${group && group.member_count ? group.member_count : 0} members in this room.`);
       }
       if (messageEl) {
-        messageEl.placeholder = isDirect ? `Message ${name}` : "Share something with the community";
+        messageEl.placeholder = "Type a message";
       }
-      document.title = name + " — Distributed Chat";
+      document.title = name + " — Chat";
+      if (chatHeaderEl) chatHeaderEl.classList.remove("is-loading");
     }
 
     let readFlushTimer = null;
@@ -684,9 +1070,15 @@
     }
 
     async function loadGroup() {
-      const response = await fetch(`${API_BASE}/groups/${groupId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      let response;
+      try {
+        response = await fetch(`${API_BASE}/groups/${groupId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } catch (error) {
+        markApiOffline(networkErrorMessage(error));
+        throw error;
+      }
       if (response.status === 401) {
         showAuth();
         return null;
@@ -699,10 +1091,15 @@
         } catch {
           // Keep the fallback message if the body is not JSON.
         }
+        if (response.status >= 500) {
+          markApiOffline("Reconnecting to the server…");
+          throw new Error(detail);
+        }
         applyGroup({ name: "Unavailable", member_count: 0, is_default: false, is_direct: false });
         addSystemMessage(detail);
         return null;
       }
+      markApiOnline();
       const group = await response.json();
       try {
         sessionStorage.setItem("chat_group", String(groupId));
@@ -714,42 +1111,75 @@
     }
 
     async function loadHistory({ replace = false } = {}) {
-      const response = await fetch(`${API_BASE}/messages?group_id=${encodeURIComponent(groupId)}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      let response;
+      try {
+        response = await fetch(`${API_BASE}/messages?group_id=${encodeURIComponent(groupId)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          timeoutMs: (window.chatUi && window.chatUi.SKELETON_TIMEOUT_MS) || 8000,
+        });
+      } catch (error) {
+        markApiOffline(networkErrorMessage(error));
+        throw error;
+      }
       if (!response.ok) {
+        if (response.status >= 500) {
+          markApiOffline("Reconnecting to the server…");
+        }
         throw new Error("Could not load message history.");
       }
       const history = await response.json();
-      if (replace && messagesEl) messagesEl.innerHTML = "";
+      if (replace && messagesListEl) messagesListEl.innerHTML = "";
       history.forEach(renderMessage);
+      applyMessageGrouping();
+      setHistoryLoading(false);
+      stickToBottom = true;
+      unreadBelow = 0;
+      updateScrollBottomBtn();
+      queueScrollToBottom({ smooth: false, force: true });
     }
 
     async function showChat() {
       manualDisconnect = false;
       if (chatPanel) chatPanel.classList.add("active");
-      if (userAvatar) userAvatar.textContent = username ? username[0].toUpperCase() : "?";
       if (adminLink) {
         adminLink.classList.toggle("visible", localStorage.getItem("is_admin") === "true");
       }
       if (sendEl) sendEl.disabled = false;
+      setHistoryLoading(true);
       if (!API_BASE) {
+        setHistoryLoading(false);
         addSystemMessage("API_BASE is missing from config.js.");
         return;
       }
       try {
         await resolveGroupId();
         const group = await loadGroup();
-        if (!group) return;
+        if (!group) {
+          setHistoryLoading(false);
+          if (chatHeaderEl) chatHeaderEl.classList.remove("is-loading");
+          if (apiOffline) startRecoveryLoop();
+          return;
+        }
         markRoomRead();
         try {
           await loadHistory();
         } catch (error) {
-          addSystemMessage(error.message || "Could not load message history.");
+          setHistoryLoading(false);
+          if (isNetworkError(error)) {
+            markApiOffline(networkErrorMessage(error));
+          } else if (!isConnectionNoise(error.message)) {
+            addSystemMessage(error.message || "Could not load message history.");
+          }
         }
         connectSocket();
       } catch (error) {
-        addSystemMessage(error.message || "Could not open this room.");
+        setHistoryLoading(false);
+        if (chatHeaderEl) chatHeaderEl.classList.remove("is-loading");
+        if (isNetworkError(error)) {
+          markApiOffline(networkErrorMessage(error));
+        } else if (!isConnectionNoise(error.message)) {
+          addSystemMessage(error.message || "Could not open this room.");
+        }
       }
     }
 
@@ -758,14 +1188,14 @@
         return;
       }
       if (!WS_BASE) {
-        setStatus(false, "Messaging server is not configured.");
+        setStatus(false, "Messaging server is not configured.", "error");
         addSystemMessage("WS_BASE is missing from config.js, so live chat cannot connect.");
         return;
       }
 
       const gen = ++connectGen;
       disconnectSocket();
-      setStatus(false, isReconnect ? reconnectStatusMessage() : "Connecting...");
+      setStatus(false, isReconnect ? reconnectStatusMessage() : "Connecting…", isReconnect ? "reconnecting" : "connecting");
 
       let ticket = null;
       try {
@@ -795,6 +1225,7 @@
           current.send(JSON.stringify({ type: "auth", token }));
         }
         stopReconnectLoop();
+        markApiOnline();
         setStatus(true);
         clearTypingIndicators();
         try {
@@ -803,7 +1234,7 @@
             await loadHistory({ replace: true });
           }
           reconcilePendingFromHistory();
-          messagesEl.querySelectorAll(".message-row.received").forEach(observeReceipts);
+          messagesListEl.querySelectorAll(".message-row.received").forEach(observeReceipts);
           flushDelivered();
           flushViewed();
           for (const [id, pending] of pendingMessages) {
@@ -835,7 +1266,7 @@
 
       socket.addEventListener("error", () => {
         if (!manualDisconnect) {
-          setStatus(false, reconnectStatusMessage());
+          setStatus(false, reconnectStatusMessage(), "reconnecting");
         }
       });
 
@@ -861,15 +1292,279 @@
       });
     }
 
-    if (messageEl) messageEl.addEventListener("input", sendTypingSignal);
+    if (messageEl) messageEl.addEventListener("input", () => {
+      sendTypingSignal();
+      syncComposeButtons();
+    });
+
+    let mediaRecorder = null;
+    let voiceChunks = [];
+    let voiceStream = null;
+    let voiceBusy = false;
+
+    function defaultMessagePlaceholder() {
+      return "Type a message";
+    }
+
+    function syncComposeButtons() {
+      const hasText = Boolean(messageEl && messageEl.value.trim());
+      const recording = Boolean(voiceBtn && voiceBtn.classList.contains("recording"));
+      if (recording || voiceBusy) {
+        if (voiceBtn) voiceBtn.hidden = false;
+        if (sendEl) sendEl.hidden = true;
+        return;
+      }
+      if (sendEl) sendEl.hidden = !hasText;
+      if (voiceBtn) voiceBtn.hidden = hasText;
+    }
+
+    function resetMessagePlaceholder() {
+      if (!messageEl) return;
+      messageEl.classList.remove("voice-hint-error");
+      messageEl.placeholder = defaultMessagePlaceholder();
+    }
+
+    function showVoiceHint(text, isError = false) {
+      if (!messageEl) return;
+      messageEl.classList.toggle("voice-hint-error", isError);
+      messageEl.placeholder = text;
+    }
+
+    function setVoiceRecording(active) {
+      if (!voiceBtn) return;
+      voiceBtn.classList.toggle("recording", active);
+      voiceBtn.disabled = voiceBusy && !active;
+      voiceBtn.setAttribute("aria-pressed", active ? "true" : "false");
+      voiceBtn.setAttribute("aria-label", active ? "Stop recording" : "Record voice message");
+      syncComposeButtons();
+    }
+
+    function releaseMicStream() {
+      if (voiceStream) {
+        voiceStream.getTracks().forEach((track) => track.stop());
+        voiceStream = null;
+      }
+    }
+
+    function floatTo16BitPCM(input) {
+      const output = new Int16Array(input.length);
+      for (let i = 0; i < input.length; i++) {
+        const sample = Math.max(-1, Math.min(1, input[i]));
+        output[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+      }
+      return output;
+    }
+
+    function downsample(buffer, fromRate, toRate) {
+      if (fromRate === toRate) return buffer;
+      const ratio = fromRate / toRate;
+      const length = Math.round(buffer.length / ratio);
+      const result = new Float32Array(length);
+      for (let i = 0; i < length; i++) {
+        const start = Math.floor(i * ratio);
+        const end = Math.min(buffer.length, Math.floor((i + 1) * ratio));
+        let sum = 0;
+        for (let j = start; j < end; j++) sum += buffer[j];
+        result[i] = end > start ? sum / (end - start) : 0;
+      }
+      return result;
+    }
+
+    function encodeWav(samples, sampleRate) {
+      const bytesPerSample = 2;
+      const blockAlign = bytesPerSample;
+      const buffer = new ArrayBuffer(44 + samples.length * bytesPerSample);
+      const view = new DataView(buffer);
+      const writeString = (offset, value) => {
+        for (let i = 0; i < value.length; i++) view.setUint8(offset + i, value.charCodeAt(i));
+      };
+      writeString(0, "RIFF");
+      view.setUint32(4, 36 + samples.length * bytesPerSample, true);
+      writeString(8, "WAVE");
+      writeString(12, "fmt ");
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true);
+      view.setUint16(22, 1, true);
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * blockAlign, true);
+      view.setUint16(32, blockAlign, true);
+      view.setUint16(34, 16, true);
+      writeString(36, "data");
+      view.setUint32(40, samples.length * bytesPerSample, true);
+      let offset = 44;
+      for (let i = 0; i < samples.length; i++, offset += 2) {
+        view.setInt16(offset, samples[i], true);
+      }
+      return new Blob([view], { type: "audio/wav" });
+    }
+
+    async function recordingToWav(blob) {
+      const audioContext = new AudioContext();
+      try {
+        const arrayBuffer = await blob.arrayBuffer();
+        const decoded = await audioContext.decodeAudioData(arrayBuffer);
+        const source = decoded.getChannelData(0);
+        const targetRate = 16000;
+        const downsampled = downsample(source, decoded.sampleRate, targetRate);
+        return encodeWav(floatTo16BitPCM(downsampled), targetRate);
+      } finally {
+        await audioContext.close().catch(() => {});
+      }
+    }
+
+    async function uploadVoiceRecording(blob) {
+      if (!API_BASE || !token) {
+        showVoiceHint("Sign in again to use voice input.", true);
+        return;
+      }
+
+      voiceBusy = true;
+      if (voiceBtn) voiceBtn.disabled = true;
+      showVoiceHint("Transcribing…");
+
+      try {
+        const wav = await recordingToWav(blob);
+        const formData = new FormData();
+        formData.append("file", wav, "voice.wav");
+        const language = encodeURIComponent(navigator.language || "en-US");
+        const response = await fetch(`${API_BASE}/transcribe?language=${language}`, {
+          method: "POST",
+          credentials: "include",
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+          timeoutMs: 60000,
+        });
+        const data = await response.json().catch(() => ({}));
+        if (response.status === 401) {
+          showAuth();
+          return;
+        }
+        if (!response.ok) {
+          showVoiceHint(formatError(data.detail) || "Voice transcription failed.", true);
+          return;
+        }
+        if (messageEl && data.text) {
+          const prefix = messageEl.value.trim();
+          messageEl.value = prefix ? `${prefix} ${data.text}`.trim() : data.text;
+          messageEl.focus();
+          messageEl.dispatchEvent(new Event("input"));
+        }
+        resetMessagePlaceholder();
+      } catch (error) {
+        showVoiceHint(networkErrorMessage(error) || "Could not transcribe voice.", true);
+      } finally {
+        voiceBusy = false;
+        if (voiceBtn) voiceBtn.disabled = false;
+        setVoiceRecording(false);
+      }
+    }
+
+    function stopVoiceRecording() {
+      if (mediaRecorder && mediaRecorder.state === "recording") {
+        mediaRecorder.stop();
+        return;
+      }
+      releaseMicStream();
+      setVoiceRecording(false);
+    }
+
+    async function toggleVoiceRecording() {
+      if (!voiceBtn || voiceBusy) return;
+
+      if (mediaRecorder && mediaRecorder.state === "recording") {
+        showVoiceHint("Transcribing…");
+        mediaRecorder.stop();
+        return;
+      }
+
+      if (!navigator.mediaDevices?.getUserMedia) {
+        showVoiceHint("This browser does not support microphone recording.", true);
+        return;
+      }
+
+      try {
+        voiceStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch {
+        showVoiceHint("Microphone access was denied.", true);
+        return;
+      }
+
+      voiceChunks = [];
+      const preferredTypes = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/mp4"];
+      const mimeType = preferredTypes.find((type) => window.MediaRecorder?.isTypeSupported(type)) || "";
+      mediaRecorder = mimeType ? new MediaRecorder(voiceStream, { mimeType }) : new MediaRecorder(voiceStream);
+
+      mediaRecorder.addEventListener("dataavailable", (event) => {
+        if (event.data && event.data.size > 0) voiceChunks.push(event.data);
+      });
+
+      mediaRecorder.addEventListener("stop", () => {
+        releaseMicStream();
+        setVoiceRecording(false);
+        if (!voiceChunks.length) {
+          showVoiceHint("No audio captured — try again.", true);
+          return;
+        }
+        const blob = new Blob(voiceChunks, { type: mediaRecorder.mimeType || "audio/webm" });
+        voiceChunks = [];
+        uploadVoiceRecording(blob);
+      });
+
+      mediaRecorder.start();
+      setVoiceRecording(true);
+      showVoiceHint("Listening… tap mic to stop");
+    }
+
+    if (voiceBtn) {
+      voiceBtn.addEventListener("click", () => {
+        toggleVoiceRecording().catch(() => {
+          voiceBusy = false;
+          setVoiceRecording(false);
+          releaseMicStream();
+          showVoiceHint("Could not start voice recording.", true);
+        });
+      });
+    }
 
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState !== "visible" || !messagesEl) return;
-      messagesEl.querySelectorAll(".message-row.received").forEach(observeReceipts);
+      if (document.visibilityState !== "visible") {
+        stopVoiceRecording();
+        return;
+      }
+      if (apiOffline) {
+        attemptRecovery().catch(() => {});
+      }
+      if (!messagesListEl) return;
+      messagesListEl.querySelectorAll(".message-row.received").forEach(observeReceipts);
       flushDelivered();
       flushViewed();
       markRoomRead();
     });
+
+    window.addEventListener("online", () => {
+      if (apiOffline || (socket && socket.readyState !== WebSocket.OPEN)) {
+        attemptRecovery().catch(() => {});
+        if (!reconnectLoopTimer && !manualDisconnect) {
+          beginReconnect();
+        }
+      }
+    });
+
+    if (messagesEl) {
+      messagesEl.addEventListener("scroll", onMessagesScroll, { passive: true });
+    }
+
+    if (scrollBottomBtn) {
+      scrollBottomBtn.addEventListener("click", () => {
+        queueScrollToBottom({ smooth: true, force: true });
+      });
+    }
+
+    if (window.visualViewport && messagesEl) {
+      window.visualViewport.addEventListener("resize", () => {
+        if (stickToBottom) queueScrollToBottom({ smooth: false, force: true });
+      });
+    }
 
     if (messagesEl) messagesEl.addEventListener("click", (event) => {
       const target = event.target;
@@ -907,6 +1602,7 @@
         timer: null,
       });
       messageEl.value = "";
+      syncComposeButtons();
       messageEl.focus();
       sendPending(id);
     });
@@ -928,9 +1624,25 @@
       }
     }
 
+    if (window.ChatCall) {
+      window.ChatCall.init({
+        getSocket: () => socket,
+        getUsername: () => username,
+        getGroupId: () => groupId,
+        getPeer: () => currentPeer,
+        getToken: () => token,
+        getApiBase: () => API_BASE,
+      });
+    }
+
     if (token && username) {
+      syncComposeButtons();
       showChat().catch((error) => {
-        addSystemMessage(error.message || "Could not start chat.");
+        if (isNetworkError(error)) {
+          markApiOffline(networkErrorMessage(error));
+        } else if (!isConnectionNoise(error.message)) {
+          addSystemMessage(error.message || "Could not start chat.");
+        }
       });
       refreshAdminFlag();
     } else {

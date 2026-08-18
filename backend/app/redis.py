@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import secrets
 import time
@@ -140,6 +141,37 @@ async def sync_group_membership(pairs: list[tuple[int, str]]) -> None:
 
 async def get_online_users(group_id: int = 1) -> list[str]:
     return sorted(await redis_client.hkeys(group_online_key(group_id)))
+
+
+def call_ring_key(username: str) -> str:
+    return f"chat:call:ring:{username}"
+
+
+async def set_call_ring(username: str, event: dict, ttl: int = 45) -> None:
+    await redis_client.setex(call_ring_key(username), ttl, json.dumps(event))
+
+
+async def get_call_ring(username: str) -> dict | None:
+    raw = await redis_client.get(call_ring_key(username))
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+async def clear_call_ring(username: str) -> None:
+    await redis_client.delete(call_ring_key(username))
+
+
+async def group_member_names(group_id: int) -> set[str]:
+    try:
+        members = await redis_client.smembers(group_members_key(group_id))
+    except Exception:
+        return set()
+    return {name for name in members if name}
 
 
 async def mark_user_online(username: str, group_id: int = 1) -> tuple[list[str], bool]:

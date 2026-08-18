@@ -24,6 +24,12 @@ POSTGRES_CONNINFO = (
 pool: AsyncConnectionPool | None = None
 
 
+def sanitize_postgres_error(message: str) -> str:
+    if POSTGRES_PASSWORD:
+        return message.replace(POSTGRES_PASSWORD, "****")
+    return message
+
+
 async def open_pool() -> None:
     global pool
     pool = AsyncConnectionPool(
@@ -534,21 +540,29 @@ async def mark_messages_delivered(recipient: str, ids: list) -> list[int]:
     return [row[0] for row in rows]
 
 
+def _iso(value):
+    return value.isoformat() if hasattr(value, "isoformat") else value
+
+
 def _row_to_group(row: tuple) -> dict:
     is_direct = bool(row[7]) if len(row) > 7 else False
     peer = row[8] if len(row) > 8 else None
     unread = int(row[9]) if len(row) > 9 and row[9] is not None else 0
+    last_at = row[11] if len(row) > 11 else None
     return {
         "id": row[0],
         "name": peer if is_direct and peer else row[1],
         "created_by": row[2],
         "is_default": bool(row[3]),
-        "created_at": row[4].isoformat() if hasattr(row[4], "isoformat") else row[4],
+        "created_at": _iso(row[4]),
         "is_member": bool(row[5]) if len(row) > 5 else False,
         "member_count": int(row[6]) if len(row) > 6 else 0,
         "is_direct": is_direct,
         "peer": peer,
         "unread_count": unread,
+        "last_message": row[10] if len(row) > 10 else None,
+        "last_at": _iso(last_at) if last_at else None,
+        "last_sender": row[12] if len(row) > 12 else None,
     }
 
 
@@ -572,7 +586,16 @@ _GROUP_SELECT = """
                               WHERE m.group_id = g.id AND m.username = %s),
                              '-infinity'::timestamptz
                          )
-                   ), 0) AS unread_count
+                   ), 0) AS unread_count,
+                   (SELECT msg.message FROM messages msg
+                    WHERE COALESCE(msg.group_id, 1) = g.id
+                    ORDER BY msg.created_at DESC LIMIT 1) AS last_message,
+                   (SELECT msg.created_at FROM messages msg
+                    WHERE COALESCE(msg.group_id, 1) = g.id
+                    ORDER BY msg.created_at DESC LIMIT 1) AS last_at,
+                   (SELECT msg.username FROM messages msg
+                    WHERE COALESCE(msg.group_id, 1) = g.id
+                    ORDER BY msg.created_at DESC LIMIT 1) AS last_sender
             FROM groups g
             """
 
@@ -682,6 +705,17 @@ async def list_group_memberships() -> list[tuple[int, str]]:
     return [(int(row[0]), row[1]) for row in rows]
 
 
+async def list_group_usernames(group_id: int) -> list[str]:
+    assert pool is not None
+    async with pool.connection() as conn:
+        result = await conn.execute(
+            "SELECT username FROM group_members WHERE group_id = %s",
+            (group_id,),
+        )
+        rows = await result.fetchall()
+    return [row[0] for row in rows]
+
+
 async def create_group(name: str, created_by: str) -> dict:
     assert pool is not None
     trimmed = name.strip()
@@ -736,7 +770,7 @@ async def list_direct_chats(username: str) -> list[dict]:
             JOIN group_members mine
               ON mine.group_id = g.id AND mine.username = %s
             WHERE COALESCE(g.is_direct, FALSE) = TRUE
-            ORDER BY g.created_at DESC
+            ORDER BY last_at DESC NULLS LAST, g.created_at DESC
             """,
             (username, username, username, username, username),
         )
@@ -875,9 +909,7 @@ async def postgres_status() -> dict:
             "pool_max": POSTGRES_POOL_MAX,
         }
     except Exception as exc:
-        message = str(exc)
-        if POSTGRES_PASSWORD:
-            message = message.replace(POSTGRES_PASSWORD, "****")
+        message = sanitize_postgres_error(str(exc))
         return {
             "connected": False,
             "user": POSTGRES_USER,

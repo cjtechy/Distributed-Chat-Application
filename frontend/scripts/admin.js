@@ -196,7 +196,15 @@
         });
       }
       if (btn.dataset.remove) {
-        if (!confirm("Remove " + btn.dataset.remove + " from the community?")) return;
+        var removeOk = window.appConfirm
+          ? await window.appConfirm({
+              title: "Remove member?",
+              body: "Remove " + btn.dataset.remove + " from the community.",
+              confirmLabel: "Remove",
+              danger: true,
+            })
+          : confirm("Remove " + btn.dataset.remove + " from the community?");
+        if (!removeOk) return;
         await api("/admin/members/" + encodeURIComponent(btn.dataset.remove), { method: "DELETE" });
       }
       await loadOverview();
@@ -210,7 +218,15 @@
   document.getElementById("messages").addEventListener("click", async function (event) {
     var btn = event.target.closest("button");
     if (!btn || !btn.dataset.msg) return;
-    if (!confirm("Delete this message for everyone?")) return;
+    var deleteOk = window.appConfirm
+      ? await window.appConfirm({
+          title: "Delete message?",
+          body: "This removes it for everyone in the community.",
+          confirmLabel: "Delete",
+          danger: true,
+        })
+      : confirm("Delete this message for everyone?");
+    if (!deleteOk) return;
     try {
       await api("/admin/messages/" + btn.dataset.msg, { method: "DELETE" });
       await loadOverview();

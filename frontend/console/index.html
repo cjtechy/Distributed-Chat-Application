@@ -2,82 +2,83 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dashboard — Distributed Chat</title>
-  <link rel="stylesheet" href="/assets/console.css?v=inbox">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Chats — Distributed Chat</title>
+  <link rel="stylesheet" href="/assets/console.css?v=phone">
 </head>
 <body>
-  <button class="btn-ghost console-menu" id="console-menu" type="button" aria-label="Open menu">Menu</button>
   <div class="console-app">
     <nav class="console-nav" id="console-nav">
       <a class="console-brand" href="/console">
         <span class="console-brand-mark" aria-hidden="true">💬</span>
-        Distributed Chat
+        Chat
       </a>
       <div class="console-links">
-        <a href="/console">Dashboard</a>
-        <a href="/console/chat">Chat</a>
-        <a href="/console/group">Groups</a>
-        <a href="/console/direct">Direct</a>
-        <a href="/console/settings">Settings</a>
+        <a href="/console" data-nav="/console">Chats</a>
+        <a href="/console/group" data-nav="/console/group">Groups</a>
+        <a href="/console/direct" data-nav="/console/direct">Direct</a>
+        <a href="/console/settings" data-nav="/console/settings">Settings</a>
       </div>
       <div class="console-user">
         <span class="console-user-name" id="console-username">…</span>
         <div class="console-user-actions">
           <a class="btn-ghost" id="console-admin" href="/admin" hidden>Admin</a>
-          <a class="btn-ghost" href="/">Home</a>
           <button class="btn-ghost" id="console-logout" type="button">Log out</button>
         </div>
       </div>
     </nav>
     <main class="console-main">
-      <div class="console-page">
-        <h1>Dashboard</h1>
-        <p class="lead">Your community at a glance — jump into the room or review who is around.</p>
-        <div class="stat-grid">
-          <div class="stat-card">
-            <b id="stat-online">—</b>
-            <span>Members online</span>
+      <div class="wa-inbox">
+        <header class="wa-page-head">
+          <div>
+            <span class="wa-logo">Chat</span>
+            <h1>Chats <span class="wa-count" id="inbox-count" hidden>0</span></h1>
           </div>
-          <div class="stat-card">
-            <b id="stat-messages">—</b>
-            <span>Recent messages loaded</span>
+          <div class="wa-head-actions">
+            <button class="wa-icon-btn" id="inbox-search-btn" type="button" aria-label="Search chats">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/></svg>
+            </button>
+            <a class="wa-icon-btn" href="/console/settings" aria-label="More">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
+            </a>
           </div>
-          <div class="stat-card">
-            <b id="stat-redis">—</b>
-            <span>Redis</span>
-          </div>
-          <div class="stat-card">
-            <b id="stat-postgres">—</b>
-            <span>Postgres</span>
-          </div>
+        </header>
+        <div class="wa-search" id="inbox-search-wrap">
+          <input id="inbox-search" type="search" placeholder="Search" autocomplete="off">
         </div>
-        <div class="card-grid">
-          <article class="panel-card">
-            <h2>Your groups</h2>
-            <p>Create rooms from Groups, or jump back into one you already belong to.</p>
-            <ul id="dash-groups" class="recent-list">
-              <li>Loading…</li>
-            </ul>
-          </article>
-          <article class="panel-card">
-            <h2>Direct messages</h2>
-            <p>Talk privately with another member.</p>
-            <ul id="dash-directs" class="recent-list">
-              <li>Loading…</li>
-            </ul>
-          </article>
-          <article class="panel-card">
-            <h2>Recent activity</h2>
-            <ul id="recent-list" class="recent-list">
-              <li>Loading…</li>
-            </ul>
-          </article>
+        <div id="inbox-list" class="wa-thread-list" aria-busy="true" aria-label="Loading chats">
+          <div class="sk-thread" aria-hidden="true"><span class="sk-bone sk-avatar"></span><div class="sk-lines"><span class="sk-bone sk-name"></span><span class="sk-bone sk-snip"></span></div><span class="sk-bone sk-time"></span></div>
+          <div class="sk-thread" aria-hidden="true"><span class="sk-bone sk-avatar"></span><div class="sk-lines"><span class="sk-bone sk-name"></span><span class="sk-bone sk-snip"></span></div><span class="sk-bone sk-time"></span></div>
+          <div class="sk-thread" aria-hidden="true"><span class="sk-bone sk-avatar"></span><div class="sk-lines"><span class="sk-bone sk-name"></span><span class="sk-bone sk-snip"></span></div><span class="sk-bone sk-time"></span></div>
+          <div class="sk-thread" aria-hidden="true"><span class="sk-bone sk-avatar"></span><div class="sk-lines"><span class="sk-bone sk-name"></span><span class="sk-bone sk-snip"></span></div><span class="sk-bone sk-time"></span></div>
+          <div class="sk-thread" aria-hidden="true"><span class="sk-bone sk-avatar"></span><div class="sk-lines"><span class="sk-bone sk-name"></span><span class="sk-bone sk-snip"></span></div><span class="sk-bone sk-time"></span></div>
+          <div class="sk-thread" aria-hidden="true"><span class="sk-bone sk-avatar"></span><div class="sk-lines"><span class="sk-bone sk-name"></span><span class="sk-bone sk-snip"></span></div><span class="sk-bone sk-time"></span></div>
+          <div class="sk-thread" aria-hidden="true"><span class="sk-bone sk-avatar"></span><div class="sk-lines"><span class="sk-bone sk-name"></span><span class="sk-bone sk-snip"></span></div><span class="sk-bone sk-time"></span></div>
         </div>
       </div>
+      <a class="wa-fab" href="/console/direct">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M22 16.92V21a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 5.18 2 2 0 0 1 4.11 3h4.09a2 2 0 0 1 2 1.72c.12.9.32 1.77.59 2.61a2 2 0 0 1-.45 2.11L9.09 10.91a16 16 0 0 0 6 6l1.47-1.25a2 2 0 0 1 2.11-.45c.84.27 1.71.47 2.61.59A2 2 0 0 1 22 16.92z"/></svg>
+        New
+      </a>
     </main>
   </div>
+  <nav class="wa-tabbar" aria-label="Main">
+    <a class="wa-tab" href="/console/group" data-nav="/console/group" aria-label="Groups">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+    </a>
+    <a class="wa-tab" href="/console" data-nav="/console" aria-label="Chats">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    </a>
+    <a class="wa-tab" href="/console/direct" data-nav="/console/direct" aria-label="Direct messages">
+      <span class="wa-tab-avatar" id="tab-avatar">?</span>
+    </a>
+    <a class="wa-tab" href="/console/settings" data-nav="/console/settings" aria-label="Settings">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.6.9 1 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    </a>
+  </nav>
   <script src="/config.js"></script>
-  <script src="/scripts/console.js"></script>
+  <script src="/scripts/http.js"></script>
+  <script src="/scripts/call.js?v=glare"></script>
+  <script src="/scripts/console.js?v=phone"></script>
 </body>
 </html>

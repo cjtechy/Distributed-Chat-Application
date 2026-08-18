@@ -1,16 +1,17 @@
 :root {
-  --bg: #0a0e13;
-  --bg2: #0f1419;
-  --bg3: #141920;
-  --sky: #ff9900;
-  --sky2: #ffb84d;
-  --green: #3dcc8e;
-  --text: #e4eef8;
-  --text2: #8aaec8;
-  --text3: #6b8499;
-  --border: #1e3050;
-  --border2: #2a4060;
+  --bg: #000000;
+  --bg2: #050505;
+  --bg3: #161616;
+  --sky: #00e5c3;
+  --sky2: #5ff0d8;
+  --green: #00e5c3;
+  --text: #ffffff;
+  --text2: #b3b3b3;
+  --text3: #7a7a7a;
+  --border: #1c1c1c;
+  --border2: #2a2a2a;
   --red: #e85a5a;
+  --ink: #04241f;
   --silk: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -76,8 +77,8 @@ a:hover {
   gap: 36px;
   overflow: hidden;
   background:
-    radial-gradient(ellipse 80% 55% at 12% 8%, rgba(255, 153, 0, 0.2), transparent 55%),
-    radial-gradient(ellipse 55% 40% at 92% 88%, rgba(61, 204, 142, 0.1), transparent 50%),
+    radial-gradient(ellipse 80% 55% at 12% 8%, rgba(0, 229, 195, 0.18), transparent 55%),
+    radial-gradient(ellipse 55% 40% at 92% 88%, rgba(0, 229, 195, 0.08), transparent 50%),
     var(--bg2);
   border-right: 1px solid var(--border);
 }
@@ -87,7 +88,7 @@ a:hover {
   position: absolute;
   inset: 0;
   background-image:
-    repeating-linear-gradient(45deg, transparent 0, transparent 119px, rgba(255, 153, 0, 0.22) 119px, rgba(255, 153, 0, 0.22) 120px);
+    repeating-linear-gradient(45deg, transparent 0, transparent 119px, rgba(0, 229, 195, 0.18) 119px, rgba(0, 229, 195, 0.18) 120px);
   -webkit-mask-image: radial-gradient(ellipse 85% 80% at 0% 100%, #000 0%, transparent 70%);
   mask-image: radial-gradient(ellipse 85% 80% at 0% 100%, #000 0%, transparent 70%);
   pointer-events: none;
@@ -112,8 +113,9 @@ a:hover {
 .auth-brand-mark {
   width: 42px;
   height: 42px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, var(--sky), #ea580c);
+  border-radius: 50%;
+  background: var(--sky);
+  color: var(--ink);
   display: grid;
   place-items: center;
   font-size: 1.1rem;
@@ -209,8 +211,8 @@ a:hover {
   font-size: 11px;
   font-weight: 600;
   color: var(--sky);
-  background: rgba(255, 153, 0, 0.12);
-  border: 1px solid rgba(255, 153, 0, 0.28);
+  background: rgba(0, 229, 195, 0.12);
+  border: 1px solid rgba(0, 229, 195, 0.28);
   border-radius: 999px;
   padding: 2px 8px;
 }
@@ -237,21 +239,23 @@ a:hover {
 }
 
 .bubble.them {
-  background: #fff;
-  border-bottom-left-radius: 4px;
+  background: #2a2a2a;
+  color: #fff;
+  border-bottom-left-radius: 8px;
   align-self: flex-start;
 }
 
 .bubble.you {
-  background: #fff7ed;
-  border-bottom-right-radius: 4px;
+  background: var(--sky);
+  color: var(--ink);
+  border-bottom-right-radius: 8px;
   align-self: flex-end;
 }
 
 .bubble .who {
   font-size: 0.7rem;
   font-weight: 700;
-  color: #c2410c;
+  color: var(--sky);
   margin-bottom: 2px;
 }
 
@@ -500,7 +504,7 @@ a:hover {
   border: 0;
   border-radius: 10px;
   background: var(--sky);
-  color: #0a1a2c;
+  color: var(--ink);
   font: inherit;
   font-size: 1rem;
   font-weight: 700;
@@ -531,8 +535,8 @@ a:hover {
 .spinner {
   width: 16px;
   height: 16px;
-  border: 2px solid rgba(10, 26, 44, 0.25);
-  border-top-color: #0a1a2c;
+  border: 2px solid rgba(4, 36, 31, 0.25);
+  border-top-color: var(--ink);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }

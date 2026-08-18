@@ -2,16 +2,13 @@ import asyncio
 import os
 import sys
 from contextlib import asynccontextmanager
-from pathlib import Path
-
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 from dotenv import load_dotenv
-from fastapi import APIRouter, Cookie, Depends, FastAPI, Header, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Cookie, Depends, FastAPI, File, Header, HTTPException, Query, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, RedirectResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import ValidationError
 
 from app.auth import (
@@ -39,6 +36,7 @@ from app.database import (
     list_direct_chats,
     list_groups,
     list_group_memberships,
+    list_group_usernames,
     list_people,
     add_group_member,
     mark_group_read,
@@ -47,6 +45,7 @@ from app.database import (
     list_members,
     open_pool,
     postgres_status,
+    sanitize_postgres_error,
     set_member_admin,
     unread_inbox,
     update_message,
@@ -72,38 +71,40 @@ from app.redis import (
     issue_ws_ticket,
     publish_message,
     redis_status,
+    set_call_ring,
+    get_call_ring,
+    clear_call_ring,
+    group_member_names,
     start_inbound_subscriber,
     sync_group_membership,
 )
 from app.security import (
+    MESSAGE_MAX_LENGTH,
     SESSION_COOKIE,
     clear_session_cookie,
     rate_limiter,
     set_session_cookie,
     validate_secret_key,
 )
+from app.transcribe import TranscriptionError, transcribe_audio
+from app.webrtc import CALL_SIGNAL_TYPES, ice_servers, webrtc_mode
+from app import sfu as webrtc_sfu
 
-load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=True)
-
-FRONTEND_DIR = Path(__file__).resolve().parents[2] / "frontend"
-LANDING_PAGE = FRONTEND_DIR / "index.html"
-CONSOLE_DIR = FRONTEND_DIR / "console"
-CONSOLE_DASHBOARD = CONSOLE_DIR / "index.html"
-CONSOLE_CHAT = CONSOLE_DIR / "chat.html"
-CONSOLE_GROUP = CONSOLE_DIR / "group.html"
-CONSOLE_DIRECT = CONSOLE_DIR / "direct.html"
-CONSOLE_SETTINGS = CONSOLE_DIR / "settings.html"
-ADMIN_PAGE = FRONTEND_DIR / "admin.html"
-AUTH_LOGIN_PAGE = FRONTEND_DIR / "auth" / "login.html"
-AUTH_REGISTER_PAGE = FRONTEND_DIR / "auth" / "register.html"
+load_dotenv(".env", override=True)
 
 inbound_task: asyncio.Task | None = None
+db_startup_error: str | None = None
 
 
 def _cors_origins() -> list[str]:
     raw = os.getenv("CORS_ORIGINS", "*").strip()
     if not raw or raw == "*":
-        return ["*"]
+        return [
+            "http://127.0.0.1:5500",
+            "http://localhost:5500",
+            "http://127.0.0.1:8000",
+            "http://localhost:8000",
+        ]
     return [origin.strip() for origin in raw.split(",") if origin.strip()]
 
 
@@ -134,16 +135,20 @@ async def get_current_admin(username: str = Depends(get_current_user)) -> dict:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global inbound_task
+    global db_startup_error, inbound_task
 
     validate_secret_key()
-    await open_pool()
-    await sync_group_membership(await list_group_memberships())
-    await message_writer.start()
-    inbound_task = asyncio.create_task(
-        start_inbound_subscriber(handle_erlang_inbound),
-        name="redis-inbound-subscriber",
-    )
+    db_startup_error = None
+    try:
+        await open_pool()
+        await sync_group_membership(await list_group_memberships())
+        await message_writer.start()
+        inbound_task = asyncio.create_task(
+            start_inbound_subscriber(handle_erlang_inbound),
+            name="redis-inbound-subscriber",
+        )
+    except Exception as exc:
+        db_startup_error = sanitize_postgres_error(str(exc))
     yield
     if inbound_task:
         inbound_task.cancel()
@@ -152,6 +157,7 @@ async def lifespan(app: FastAPI):
         except asyncio.CancelledError:
             pass
     await message_writer.stop()
+    await webrtc_sfu.close_all()
     await close_pool()
 
 
@@ -208,13 +214,22 @@ app.add_middleware(
 )
 
 
+def database_offline_detail() -> str:
+    if db_startup_error:
+        return f"database offline: {db_startup_error}"
+    return "database offline"
+
+
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
+    if request.url.path.startswith("/v1") and request.url.path not in {"/v1/health", "/v1/status"}:
+        if db_startup_error:
+            return JSONResponse(status_code=503, content={"detail": database_offline_detail()})
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["Permissions-Policy"] = "camera=(self), microphone=(self), geolocation=()"
     if request.url.path.startswith("/v1"):
         response.headers["Cache-Control"] = "no-store"
         # Chrome/Edge "Private Network Access" gate for requests from HTTPS
@@ -228,105 +243,14 @@ api_v1 = APIRouter(prefix="/v1")
 
 @app.get("/")
 async def landing():
-    if LANDING_PAGE.exists():
-        return FileResponse(LANDING_PAGE)
+    if db_startup_error:
+        return {"message": database_offline_detail()}
     return {"message": "api server running"}
 
 
 @app.get("/index.html")
 async def landing_html():
     return await landing()
-
-
-@app.get("/console")
-@app.get("/console/")
-@app.get("/console/index.html")
-async def console_dashboard():
-    if CONSOLE_DASHBOARD.exists():
-        return FileResponse(CONSOLE_DASHBOARD)
-    raise HTTPException(status_code=404, detail="Console page not found")
-
-
-@app.get("/console/chat")
-@app.get("/console/chat.html")
-async def console_chat():
-    if CONSOLE_CHAT.exists():
-        return FileResponse(CONSOLE_CHAT)
-    raise HTTPException(status_code=404, detail="Chat page not found")
-
-
-@app.get("/console/group")
-@app.get("/console/group.html")
-async def console_group():
-    if CONSOLE_GROUP.exists():
-        return FileResponse(CONSOLE_GROUP)
-    raise HTTPException(status_code=404, detail="Groups page not found")
-
-
-@app.get("/console/direct")
-@app.get("/console/direct.html")
-async def console_direct():
-    if CONSOLE_DIRECT.exists():
-        return FileResponse(CONSOLE_DIRECT)
-    raise HTTPException(status_code=404, detail="Direct messages page not found")
-
-
-@app.get("/console/settings")
-@app.get("/console/settings.html")
-async def console_settings():
-    if CONSOLE_SETTINGS.exists():
-        return FileResponse(CONSOLE_SETTINGS)
-    raise HTTPException(status_code=404, detail="Settings page not found")
-
-
-@app.get("/chat")
-@app.get("/chat.html")
-async def chat_app():
-    return RedirectResponse("/console/chat", status_code=307)
-
-
-@app.get("/admin")
-async def admin_app():
-    if ADMIN_PAGE.exists():
-        return FileResponse(ADMIN_PAGE)
-    raise HTTPException(status_code=404, detail="Admin page not found")
-
-
-@app.get("/admin.html")
-async def admin_app_html():
-    return await admin_app()
-
-
-@app.get("/auth/login")
-async def auth_login():
-    if AUTH_LOGIN_PAGE.exists():
-        return FileResponse(AUTH_LOGIN_PAGE)
-    raise HTTPException(status_code=404, detail="Login page not found")
-
-
-@app.get("/auth/login.html")
-async def auth_login_html():
-    return await auth_login()
-
-
-@app.get("/auth/register")
-async def auth_register():
-    if AUTH_REGISTER_PAGE.exists():
-        return FileResponse(AUTH_REGISTER_PAGE)
-    raise HTTPException(status_code=404, detail="Register page not found")
-
-
-@app.get("/auth/register.html")
-async def auth_register_html():
-    return await auth_register()
-
-
-@app.get("/config.js")
-async def frontend_config():
-    config_file = FRONTEND_DIR / "config.js"
-    if config_file.exists():
-        return FileResponse(config_file, media_type="application/javascript")
-    raise HTTPException(status_code=404, detail="config.js not found")
 
 
 @api_v1.get("/username-available", response_model=UsernameCheckResponse)
@@ -394,6 +318,129 @@ async def logout(response: Response):
 async def ws_ticket(username: str = Depends(get_current_user)):
     ticket = await issue_ws_ticket(username)
     return {"ticket": ticket, "expires_in": 30}
+
+
+@api_v1.post("/transcribe")
+async def transcribe(
+    request: Request,
+    file: UploadFile = File(...),
+    language: str | None = Query(default=None, max_length=16),
+    username: str = Depends(get_current_user),
+):
+    rate_limiter.check(request, "transcribe", 20, 60)
+    content_type = (file.content_type or "").lower()
+    if content_type and not (
+        content_type.startswith("audio/")
+        or content_type in {"application/octet-stream", "application/wav", "audio/wav", "audio/wave", "audio/x-wav"}
+    ):
+        raise HTTPException(status_code=422, detail="Upload an audio recording.")
+
+    data = await file.read()
+    try:
+        text = await transcribe_audio(data, file.filename or "voice.wav", language)
+    except TranscriptionError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    if len(text) > MESSAGE_MAX_LENGTH:
+        text = text[:MESSAGE_MAX_LENGTH]
+
+    return {"text": text, "username": username}
+
+
+@api_v1.get("/webrtc/ice")
+async def webrtc_ice(username: str = Depends(get_current_user)):
+    return {
+        "iceServers": ice_servers(),
+        "mode": webrtc_mode() if webrtc_sfu.AIORTC_AVAILABLE else "p2p",
+        "sfu": webrtc_sfu.AIORTC_AVAILABLE,
+    }
+
+
+@api_v1.post("/webrtc/signal")
+async def webrtc_signal(request: Request, username: str = Depends(get_current_user)):
+    rate_limiter.check(request, "webrtc-signal", 600, 60)
+    body = await request.json()
+    signal_type = str(body.get("type") or "")
+    if signal_type not in CALL_SIGNAL_TYPES:
+        raise HTTPException(status_code=422, detail="Unknown call signal.")
+    call_id = str(body.get("call_id") or "")
+    if not call_id or len(call_id) > 80:
+        raise HTTPException(status_code=422, detail="Invalid call id.")
+    group_id = parse_group_id(body.get("group_id"))
+    await require_group_member(username, group_id)
+    event = {
+        "type": signal_type,
+        "call_id": call_id,
+        "from": username,
+        "username": username,
+        "group_id": group_id,
+    }
+    if body.get("to"):
+        event["to"] = str(body["to"])[:32]
+    if body.get("media") in {"audio", "video"}:
+        event["media"] = body["media"]
+    if isinstance(body.get("sdp"), str) and body["sdp"]:
+        event["sdp"] = body["sdp"][:200000]
+    if isinstance(body.get("candidate"), dict):
+        event["candidate"] = body["candidate"]
+    await publish_message(event)
+    if signal_type == "call_invite":
+        targets = set(await list_group_usernames(group_id))
+        targets.update(await group_member_names(group_id))
+        targets.update(await get_online_users(group_id))
+        if event.get("to"):
+            targets.add(event["to"])
+        targets.discard(username)
+        for target in targets:
+            await set_call_ring(target, event, ttl=60)
+    elif signal_type in {"call_reject", "call_hangup", "call_accept"}:
+        await clear_call_ring(username)
+        if event.get("to"):
+            await clear_call_ring(event["to"])
+    return {"ok": True}
+
+
+@api_v1.get("/webrtc/inbox")
+async def webrtc_inbox(username: str = Depends(get_current_user)):
+    invite = await get_call_ring(username)
+    return {"invite": invite}
+
+
+@api_v1.post("/webrtc/sfu/{call_id}")
+async def webrtc_sfu_offer(
+    call_id: str,
+    payload: webrtc_sfu.SfuOfferRequest,
+    username: str = Depends(get_current_user),
+):
+    await require_group_member(username, payload.group_id)
+    if webrtc_mode() != "sfu":
+        raise HTTPException(status_code=409, detail="SFU mode is not enabled.")
+    try:
+        answer = await webrtc_sfu.join_offer(call_id, username, payload.group_id, payload.sdp)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"sdp": answer, "type": "answer"}
+
+
+@api_v1.post("/webrtc/sfu/{call_id}/answer")
+async def webrtc_sfu_answer(
+    call_id: str,
+    payload: webrtc_sfu.SfuAnswerRequest,
+    username: str = Depends(get_current_user),
+):
+    try:
+        await webrtc_sfu.apply_answer(call_id, username, payload.sdp)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="No SFU session for this call.")
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"ok": True}
+
+
+@api_v1.post("/webrtc/sfu/{call_id}/leave")
+async def webrtc_sfu_leave(call_id: str, username: str = Depends(get_current_user)):
+    await webrtc_sfu.leave(call_id, username)
+    return {"ok": True}
 
 
 @api_v1.get("/me")
@@ -539,13 +586,13 @@ async def online(
 
 @api_v1.get("/health")
 async def health():
-    return {"ok": True}
+    return {"ok": db_startup_error is None, "database": "offline" if db_startup_error else "online"}
 
 
 @api_v1.get("/status")
-async def status(_username: str = Depends(get_current_user)):
+async def status():
     return {
-        "message": "api server running",
+        "message": database_offline_detail() if db_startup_error else "api server running",
         "postgres": await postgres_status(),
         "redis": await redis_status(),
         "message_writer_queue": message_writer.queue_depth,
@@ -616,6 +663,3 @@ async def admin_remove_message(message_id: int, _admin: dict = Depends(get_curre
 
 
 app.include_router(api_v1)
-
-app.mount("/assets", StaticFiles(directory=FRONTEND_DIR / "assets"), name="assets")
-app.mount("/scripts", StaticFiles(directory=FRONTEND_DIR / "scripts"), name="scripts")
