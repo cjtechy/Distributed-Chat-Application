@@ -37,14 +37,13 @@ jobs:
             API_BASE="https://api.yourdomain.com/v1"
           fi
           if [ -z "$WS_BASE" ]; then
-            WS_LINE=""
-          else
-            WS_LINE="            WS_BASE: \"${WS_BASE}\","
+            echo "::warning::WS_BASE repo variable is not set. Using placeholder — set it under Settings → Secrets and variables → Actions → Variables."
+            WS_BASE="wss://ws.yourdomain.com/v1"
           fi
           cat > frontend/config.js <<EOF
           window.APP_CONFIG = {
             API_BASE: "${API_BASE}",
-          ${WS_LINE}
+            WS_BASE: "${WS_BASE}",
           };
           EOF
 

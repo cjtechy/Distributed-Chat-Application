@@ -11,6 +11,7 @@ _SENTINEL = object()
 class _Pending:
     username: str
     message: str
+    group_id: int
     future: asyncio.Future
 
 
@@ -36,10 +37,10 @@ class MessageWriter:
             await self._task
             self._task = None
 
-    async def save(self, username: str, message: str) -> dict:
+    async def save(self, username: str, message: str, group_id: int = 1) -> dict:
         loop = asyncio.get_running_loop()
         future: asyncio.Future = loop.create_future()
-        await self._queue.put(_Pending(username, message, future))
+        await self._queue.put(_Pending(username, message, group_id, future))
         return await future
 
     async def _run(self) -> None:
@@ -67,11 +68,11 @@ class MessageWriter:
         if not pending:
             return
 
-        items = [(p.username, p.message) for p in pending]
+        items = [(p.username, p.message, p.group_id) for p in pending]
 
         try:
             if len(items) == 1:
-                saved = await save_message(items[0][0], items[0][1])
+                saved = await save_message(items[0][0], items[0][1], items[0][2])
                 results = [saved]
             else:
                 results = await save_messages_batch(items)

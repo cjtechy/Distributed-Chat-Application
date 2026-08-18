@@ -2,339 +2,499 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Distributed Chat Application</title>
-  <style>
-    :root {
-      --primary: #4338ca;
-      --primary-dark: #312e81;
-      --primary-light: #6366f1;
-      --accent: #f97316;
-      --bg: #0f172a;
-      --surface: #1e293b;
-      --text: #f8fafc;
-      --muted: #94a3b8;
-      --border: rgba(148, 163, 184, 0.2);
-    }
-
-    * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      line-height: 1.6;
-    }
-
-    a { color: inherit; text-decoration: none; }
-
-    .container {
-      width: min(1100px, calc(100% - 32px));
-      margin: 0 auto;
-    }
-
-    .nav {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 20px 0;
-    }
-
-    .logo {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-weight: 600;
-      font-size: 1.1rem;
-    }
-
-    .logo-mark {
-      width: 36px;
-      height: 36px;
-      border-radius: 10px;
-      background: linear-gradient(135deg, var(--primary-light), var(--accent));
-      display: grid;
-      place-items: center;
-    }
-
-    .btn {
-      display: inline-block;
-      border: 0;
-      border-radius: 10px;
-      padding: 12px 20px;
-      font: inherit;
-      font-weight: 600;
-      cursor: pointer;
-      transition: transform 0.15s ease, filter 0.15s ease;
-    }
-
-    .btn:hover {
-      transform: translateY(-1px);
-      filter: brightness(1.05);
-    }
-
-    .btn-primary {
-      background: linear-gradient(135deg, var(--primary-light), var(--primary));
-      color: white;
-    }
-
-    .btn-accent {
-      background: linear-gradient(135deg, var(--accent), #ea580c);
-      color: white;
-    }
-
-    .hero {
-      padding: 72px 0 56px;
-      display: grid;
-      grid-template-columns: 1.1fr 0.9fr;
-      gap: 40px;
-      align-items: center;
-    }
-
-    .badge {
-      display: inline-block;
-      background: rgba(99, 102, 241, 0.15);
-      color: #c7d2fe;
-      border: 1px solid rgba(99, 102, 241, 0.35);
-      padding: 6px 12px;
-      border-radius: 999px;
-      font-size: 0.85rem;
-      margin-bottom: 16px;
-    }
-
-    .hero h1 {
-      margin: 0 0 16px;
-      font-size: clamp(2.2rem, 5vw, 3.5rem);
-      line-height: 1.1;
-    }
-
-    .hero h1 span {
-      background: linear-gradient(135deg, #c7d2fe, #fdba74);
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
-    }
-
-    .hero p {
-      margin: 0 0 28px;
-      color: var(--muted);
-      font-size: 1.05rem;
-      max-width: 540px;
-    }
-
-    .hero-actions {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-    }
-
-    .preview {
-      background: linear-gradient(180deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.95));
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      padding: 20px;
-      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
-    }
-
-    .preview-header {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 16px;
-      padding-bottom: 12px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .preview-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: #64748b;
-    }
-
-    .preview-dot.live { background: #22c55e; }
-
-    .preview-title {
-      font-size: 0.9rem;
-      color: var(--muted);
-    }
-
-    .preview-message {
-      max-width: 75%;
-      padding: 10px 12px;
-      border-radius: 12px;
-      margin-bottom: 10px;
-      font-size: 0.92rem;
-    }
-
-    .preview-message.received {
-      background: #334155;
-      border-bottom-left-radius: 4px;
-    }
-
-    .preview-message.sent {
-      background: rgba(99, 102, 241, 0.25);
-      border: 1px solid rgba(99, 102, 241, 0.35);
-      margin-left: auto;
-      border-bottom-right-radius: 4px;
-    }
-
-    .features {
-      padding: 24px 0 72px;
-    }
-
-    .section-title {
-      text-align: center;
-      margin-bottom: 32px;
-    }
-
-    .section-title h2 {
-      margin: 0 0 8px;
-      font-size: 1.8rem;
-    }
-
-    .section-title p {
-      margin: 0;
-      color: var(--muted);
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 18px;
-    }
-
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 22px;
-    }
-
-    .card h3 {
-      margin: 0 0 8px;
-      font-size: 1.05rem;
-    }
-
-    .card p {
-      margin: 0;
-      color: var(--muted);
-      font-size: 0.95rem;
-    }
-
-    .cta {
-      margin: 0 0 72px;
-      text-align: center;
-      background: linear-gradient(135deg, rgba(67, 56, 202, 0.35), rgba(249, 115, 22, 0.18));
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      padding: 40px 24px;
-    }
-
-    .cta h2 {
-      margin: 0 0 10px;
-      font-size: 1.8rem;
-    }
-
-    .cta p {
-      margin: 0 0 20px;
-      color: var(--muted);
-    }
-
-    footer {
-      padding: 24px 0 40px;
-      text-align: center;
-      color: var(--muted);
-      font-size: 0.9rem;
-      border-top: 1px solid var(--border);
-    }
-
-    @media (max-width: 860px) {
-      .hero {
-        grid-template-columns: 1fr;
-        padding-top: 40px;
-      }
-    }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Distributed Chat — Community hub</title>
+  <meta name="description" content="A community hub for neighborhoods, clubs, teams, and classes. Talk in real time and keep everyone in the loop.">
+  <link rel="stylesheet" href="assets/landing.css">
+  <link rel="stylesheet" href="assets/landing-chat.css">
 </head>
 <body>
-  <div class="container">
-    <nav class="nav">
-      <div class="logo">
-        <div class="logo-mark">💬</div>
-        <span>Distributed Chat</span>
-      </div>
-      <a class="btn btn-primary" href="chat.html">Open Chat</a>
-    </nav>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
 
-    <section class="hero">
-      <div>
-        <div class="badge">Real-time · PostgreSQL · Redis Pub/Sub</div>
-        <h1>Chat that scales <span>horizontally</span></h1>
-        <p>
-          A distributed chat application built with FastAPI, WebSockets, PostgreSQL,
-          and Redis. Messages are saved, delivered in real time, and shared across
-          multiple backend servers.
-        </p>
-        <div class="hero-actions">
-          <a class="btn btn-accent" href="chat.html">Start Chatting</a>
-          <a class="btn btn-primary" data-api-status href="#">API Status</a>
-        </div>
-      </div>
-
-      <div class="preview">
-        <div class="preview-header">
-          <span class="preview-dot live"></span>
-          <span class="preview-title">Group Chat · 3 online</span>
-        </div>
-        <div class="preview-message received">Alice: Hey, is the server running?</div>
-        <div class="preview-message sent">Yes — message saved to Postgres and broadcast via Redis.</div>
-        <div class="preview-message received">Bob is typing...</div>
-      </div>
-    </section>
-
-    <section class="features">
-      <div class="section-title">
-        <h2>Built for distributed messaging</h2>
-        <p>Everything you need for a modern real-time chat backend.</p>
-      </div>
-      <div class="grid">
-        <article class="card">
-          <h3>WebSocket chat</h3>
-          <p>Instant message delivery with typing indicators and online presence.</p>
-        </article>
-        <article class="card">
-          <h3>PostgreSQL storage</h3>
-          <p>Messages are persisted as the source of truth with full CRUD support.</p>
-        </article>
-        <article class="card">
-          <h3>Erlang/OTP messaging</h3>
-          <p>Optional separate WebSocket node for huge concurrent connection counts. Python and Erlang talk over Redis.</p>
-        </article>
-        <article class="card">
-          <h3>Authentication</h3>
-          <p>Register, login, and secure WebSocket connections with JWT tokens.</p>
-        </article>
-      </div>
-    </section>
-
-    <section class="cta">
-      <h2>Ready to try it?</h2>
-      <p>Open the chat app, create an account, and send your first message.</p>
-      <a class="btn btn-accent" href="chat.html">Go to Chat App</a>
-    </section>
-
-    <footer>
-      Distributed Chat Application · FastAPI backend · Frontend on GitHub Pages ready
-    </footer>
+  <div id="loader" role="status" aria-live="polite" aria-label="Loading">
+    <div id="load" aria-hidden="true">
+      <div>G</div>
+      <div>N</div>
+      <div>I</div>
+      <div>D</div>
+      <div>A</div>
+      <div>O</div>
+      <div>L</div>
+    </div>
   </div>
 
-  <script src="config.js"></script>
-  <script>
-    document.querySelectorAll("[data-api-status]").forEach((link) => {
-      link.href = `${window.APP_CONFIG.API_BASE}/status`;
-    });
-  </script>
+  <div class="scroll-progress" id="scrollProgress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Page scroll progress">
+    <div class="scroll-progress-bar" id="scrollProgressBar"></div>
+  </div>
+
+  <nav id="mainNav">
+    <a href="#home" class="nav-logo" aria-label="Distributed Chat — Home">
+      <span class="nav-logo-mark" aria-hidden="true">💬</span>
+      <span class="nav-logo-text">DC</span>
+    </a>
+    <div class="nav-links">
+      <a href="#home">Home</a>
+      <a href="#features">Features</a>
+      <a href="#about">About</a>
+      <a href="#testimonials">Stories</a>
+      <a href="#faq">FAQ</a>
+    </div>
+    <div class="nav-cta">
+      <a class="btn-ghost" id="admin-link" href="/admin" hidden>Admin</a>
+      <a href="/auth/login" class="btn-ghost" data-guest-nav>Sign in</a>
+      <a href="/auth/register" class="btn-primary" data-guest-nav>Join</a>
+      <a href="/console" class="btn-primary" id="dashboard-link" hidden>Dashboard</a>
+    </div>
+    <button class="hamburger" id="hamburger" aria-label="Open menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+  </nav>
+
+  <div class="mobile-menu" id="mobileMenu">
+    <a href="#home">Home</a>
+    <a href="#features">Features</a>
+    <a href="#about">About</a>
+    <a href="#testimonials">Stories</a>
+    <a href="#faq">FAQ</a>
+    <div class="m-btns">
+      <a class="btn-ghost" id="admin-link-mobile" href="/admin" hidden>Admin</a>
+      <a href="/auth/login" class="btn-ghost" data-guest-nav>Sign in</a>
+      <a href="/auth/register" class="btn-primary" data-guest-nav>Join</a>
+      <a href="/console" class="btn-primary" id="dashboard-link-mobile" hidden>Dashboard</a>
+    </div>
+  </div>
+
+  <main id="main-content">
+    <section class="hero" id="home" aria-labelledby="hero-heading">
+      <div class="hero-bg" aria-hidden="true"></div>
+      <div class="hero-content silk-reveal-left">
+        <div class="hero-badge">
+          <span class="badge-dot"></span>
+          For small communities
+        </div>
+        <h1 id="hero-heading">
+          <span class="hero-headline-lead">A hub for your</span>
+          <span class="hero-typewriter-line" aria-live="polite">
+            <span class="typewriter" data-words="Neighborhood,Club,Team,Classroom,Congregation,Study group,Volunteer crew"></span>
+          </span>
+        </h1>
+        <p class="hero-sub">One shared room for the people you already know. Talk live, see who’s around, and keep the story in one place — without juggling extra apps.</p>
+        <div class="hero-btns">
+          <a href="/auth/register" class="btn-hero" data-primary-cta>
+            <span class="cta-label">Join this community</span>
+            <svg viewBox="0 0 16 16"><line x1="3" y1="8" x2="13" y2="8"/><polyline points="9,4 13,8 9,12"/></svg>
+          </a>
+          <a href="/auth/login" class="btn-outline" data-guest-nav>I already have an account</a>
+        </div>
+        <p class="dc-welcome" id="welcome"></p>
+        <div class="hero-trust">
+          <div class="hero-trust-chips" role="list" aria-label="Made for groups like">
+            <span class="hero-chip hero-chip-ke" role="listitem">NB</span>
+            <span class="hero-chip hero-chip-ng" role="listitem">TM</span>
+            <span class="hero-chip hero-chip-dev" role="listitem">CL</span>
+            <span class="hero-chip hero-chip-more" role="listitem">+</span>
+          </div>
+          <p class="hero-trust-text">
+            <span class="hero-trust-word"><strong>Gather</strong></span>
+            <span class="hero-trust-sep" aria-hidden="true"></span>
+            <span class="hero-trust-word"><strong>Talk</strong></span>
+            <span class="hero-trust-sep" aria-hidden="true"></span>
+            <span class="hero-trust-word"><strong>Catch up</strong></span>
+          </p>
+        </div>
+      </div>
+      <div class="hero-visual silk-reveal-right">
+        <div class="float-badge fb-left">
+          <div class="float-badge-icon" style="background:rgba(61,204,142,.12)">
+            <svg width="18" height="18" fill="none" stroke="#3DCC8E" stroke-width="2" stroke-linecap="round" viewBox="0 0 18 18"><polyline points="2,12 7,7 11,10 16,4"/></svg>
+          </div>
+          <div class="float-badge-info">
+            <div class="val">Live</div>
+            <div class="lbl">Same room</div>
+          </div>
+        </div>
+        <div class="float-badge fb-right">
+          <div class="float-badge-icon" style="background:rgba(255,153,0,.12)">
+            <svg width="18" height="18" fill="none" stroke="#ff9900" stroke-width="2" stroke-linecap="round" viewBox="0 0 18 18"><circle cx="9" cy="9" r="7"/><polyline points="9,5 9,9 12,11"/></svg>
+          </div>
+          <div class="float-badge-info">
+            <div class="val">1,000</div>
+            <div class="lbl">People per room</div>
+          </div>
+        </div>
+        <div class="kenya-map-card dc-chat-preview" aria-hidden="true">
+          <div class="kenya-map-topbar">
+            <div class="dash-dots">
+              <span style="background:#E85A5A"></span>
+              <span style="background:#F0A030"></span>
+              <span style="background:#3DCC8E"></span>
+            </div>
+            <span class="kenya-map-badge" style="margin-left:auto">12 online</span>
+          </div>
+          <div class="kenya-map-body">
+            <div class="dc-bubbles">
+              <div class="dc-bubble them">
+                <div class="who">Maya</div>
+                Park cleanup is Saturday at 9. Bring gloves if you can.
+                <span class="when">2:14 PM</span>
+              </div>
+              <div class="dc-bubble you">
+                I’ll bring extra bags from the shop.
+                <span class="when">2:15 PM</span>
+              </div>
+              <div class="dc-bubble them">
+                <div class="who">Jordan</div>
+                Just got home — reading back now. Count me in.
+                <span class="when">2:16 PM</span>
+              </div>
+            </div>
+            <div class="dc-compose">
+              <span>Share something with the community</span>
+              <em>➤</em>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="logos-section" aria-label="Made for groups like">
+      <div class="logos-label">Neighborhoods, clubs, teams, classrooms &amp; every kind of small community</div>
+      <div class="logos-track-wrap">
+        <div class="logos-track" id="logosTrack"></div>
+      </div>
+    </div>
+
+    <section class="stats-section tgk-stats-three">
+      <div class="stat-block">
+        <div class="stat-icon">
+          <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+        <div class="stat-num" data-target="1000" data-suffix="">0</div>
+        <div class="stat-label">People in a room</div>
+        <div class="stat-bar-wrap"><div class="stat-bar" style="width:0%" data-width="92%"></div></div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-icon" style="background:rgba(61,204,142,.1);border-color:rgba(61,204,142,.15)">
+          <svg viewBox="0 0 24 24" style="stroke:var(--green)"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </div>
+        <div class="stat-num" data-target="1" data-suffix="">0</div>
+        <div class="stat-label">Shared live room</div>
+        <div class="stat-bar-wrap"><div class="stat-bar" style="width:0%;background:#3DCC8E" data-width="76%"></div></div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-icon" style="background:rgba(136,136,248,.1);border-color:rgba(136,136,248,.15)">
+          <svg viewBox="0 0 24 24" style="stroke:#8888F8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <div class="stat-num" data-target="24" data-suffix="/7">0</div>
+        <div class="stat-label">History when you return</div>
+        <div class="stat-bar-wrap"><div class="stat-bar" style="width:0%;background:#8888F8" data-width="88%"></div></div>
+      </div>
+    </section>
+
+    <section class="features-section" id="features" aria-labelledby="features-heading">
+      <div class="features-header silk-reveal">
+        <div class="section-tag">What you get</div>
+        <h2 class="section-title" id="features-heading">Gather, stay in the loop, and come back anytime</h2>
+        <p class="section-sub">Everyone lands in the same room. Live messages, who’s online, and saved history — so plans don’t get lost after practice, class, or the weekend.</p>
+      </div>
+      <div class="sticky-layout">
+        <div class="sticky-cards">
+          <div class="sticky-card active" data-panel="0">
+            <div class="sticky-card-icon">
+              <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            </div>
+            <h3>Live room</h3>
+            <p>One shared conversation. No extra threads to chase. Say it once and the whole group hears it.</p>
+            <div class="sticky-card-pills">
+              <span class="sc-pill">Real time</span>
+              <span class="sc-pill">One room</span>
+              <span class="sc-pill">Simple</span>
+            </div>
+            <a href="/console/chat" class="sticky-card-cta">Open the room<svg viewBox="0 0 16 16" aria-hidden="true"><line x1="3" y1="8" x2="13" y2="8"/><polyline points="9,4 13,8 9,12"/></svg></a>
+          </div>
+          <div class="sticky-card" data-panel="1">
+            <div class="sticky-card-icon">
+              <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <h3>Who’s around</h3>
+            <p>See who’s online before you post. Easier to time a call for help, a ride, or a last-minute plan.</p>
+            <div class="sticky-card-pills">
+              <span class="sc-pill">Presence</span>
+              <span class="sc-pill">Up to 1,000</span>
+              <span class="sc-pill">Right now</span>
+            </div>
+            <a href="/console/chat" class="sticky-card-cta">See who’s in<svg viewBox="0 0 16 16" aria-hidden="true"><line x1="3" y1="8" x2="13" y2="8"/><polyline points="9,4 13,8 9,12"/></svg></a>
+          </div>
+          <div class="sticky-card" data-panel="2">
+            <div class="sticky-card-icon">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <h3>Catch up later</h3>
+            <p>History is saved. Missed the evening? Scroll back after class, practice, or the weekend.</p>
+            <div class="sticky-card-pills">
+              <span class="sc-pill">Saved</span>
+              <span class="sc-pill">Scroll back</span>
+              <span class="sc-pill">No recap DMs</span>
+            </div>
+            <a href="/console/chat" class="sticky-card-cta">Catch up<svg viewBox="0 0 16 16" aria-hidden="true"><line x1="3" y1="8" x2="13" y2="8"/><polyline points="9,4 13,8 9,12"/></svg></a>
+          </div>
+        </div>
+
+        <div class="sticky-panel-wrap">
+          <div class="sticky-panel">
+            <div class="panel-topbar">
+              <div class="panel-dots">
+                <span style="background:#E85A5A"></span>
+                <span style="background:#F0A030"></span>
+                <span style="background:#3DCC8E"></span>
+              </div>
+              <span style="font-size:11px;color:var(--text3);margin-left:8px" id="panelLabel">Live room</span>
+            </div>
+            <div class="panel-content tgk-feature-visual" style="padding:0">
+              <div class="panel-view panel-view-chat active" id="panel-0">
+                <div class="dc-panel-chat">
+                  <div class="dc-bubbles">
+                    <div class="dc-bubble them"><div class="who">Maya</div>Park cleanup is Saturday at 9.<span class="when">2:14 PM</span></div>
+                    <div class="dc-bubble you">I’ll bring extra bags from the shop.<span class="when">2:15 PM</span></div>
+                    <div class="dc-bubble them"><div class="who">Jordan</div>Count me in.<span class="when">2:16 PM</span></div>
+                  </div>
+                </div>
+              </div>
+              <div class="panel-view panel-view-chat" id="panel-1">
+                <div class="dc-panel-chat">
+                  <div class="dc-bubbles">
+                    <div class="dc-bubble them"><div class="who">Online now</div>Maya, Jordan, Sam, Chris, and 8 neighbors.<span class="when">Right now</span></div>
+                    <div class="dc-bubble you">Anyone free to help set up chairs?<span class="when">Just now</span></div>
+                    <div class="dc-bubble them"><div class="who">Sam</div>On my way — 10 minutes.<span class="when">Just now</span></div>
+                  </div>
+                </div>
+              </div>
+              <div class="panel-view panel-view-chat" id="panel-2">
+                <div class="dc-panel-chat">
+                  <div class="dc-bubbles">
+                    <div class="dc-bubble them"><div class="who">Yesterday</div>Final roster is on the board. Check before you leave.<span class="when">Sat 8:02 PM</span></div>
+                    <div class="dc-bubble them"><div class="who">Maya</div>Photos from the cleanup are in the album.<span class="when">Sun 11:40 AM</span></div>
+                    <div class="dc-bubble you">Reading back now. Looks great.<span class="when">Sun 4:12 PM</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="pricing-section" id="join">
+      <div class="pricing-grid" style="max-width:960px;margin:40px auto 0">
+        <div class="price-card">
+          <div class="price-amount tgk-price-title">Join free</div>
+          <p class="price-period">Create an account and land in the shared room with everyone else.</p>
+          <ul class="price-features">
+            <li><svg viewBox="0 0 16 16"><polyline points="2,8 6,12 14,4"/></svg>One community room</li>
+            <li><svg viewBox="0 0 16 16"><polyline points="2,8 6,12 14,4"/></svg>Live messages</li>
+            <li><svg viewBox="0 0 16 16"><polyline points="2,8 6,12 14,4"/></svg>See who’s online</li>
+            <li><svg viewBox="0 0 16 16"><polyline points="2,8 6,12 14,4"/></svg>Saved history</li>
+          </ul>
+          <a href="/auth/register" class="price-btn price-btn-ghost">Create account</a>
+        </div>
+        <div class="price-card featured">
+          <div class="featured-badge">Start here</div>
+          <div class="price-amount tgk-price-title">Open the room</div>
+          <p class="price-period">Already in the community? Jump straight back into the conversation.</p>
+          <ul class="price-features">
+            <li><svg viewBox="0 0 16 16"><polyline points="2,8 6,12 14,4"/></svg>Sign in with your name</li>
+            <li><svg viewBox="0 0 16 16"><polyline points="2,8 6,12 14,4"/></svg>Catch up on what you missed</li>
+            <li><svg viewBox="0 0 16 16"><polyline points="2,8 6,12 14,4"/></svg>Talk with people who are here now</li>
+            <li><svg viewBox="0 0 16 16"><polyline points="2,8 6,12 14,4"/></svg>Leave and come back anytime</li>
+          </ul>
+          <a href="/auth/register" class="price-btn price-btn-primary" data-primary-cta>Join this community</a>
+        </div>
+        <div class="price-card">
+          <div class="price-amount tgk-price-title">Run the room</div>
+          <p class="price-period">Admins can see members, messages, and who’s online right now.</p>
+          <ul class="price-features">
+            <li><svg viewBox="0 0 16 16"><polyline points="2,8 6,12 14,4"/></svg>Member list</li>
+            <li><svg viewBox="0 0 16 16"><polyline points="2,8 6,12 14,4"/></svg>Recent messages</li>
+            <li><svg viewBox="0 0 16 16"><polyline points="2,8 6,12 14,4"/></svg>Health of the room</li>
+            <li><svg viewBox="0 0 16 16"><polyline points="2,8 6,12 14,4"/></svg>Keep the space kind</li>
+          </ul>
+          <a href="/admin" class="price-btn price-btn-ghost">Admin portal</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="security-section" id="about">
+      <div class="tgk-about-blurb" style="text-align:center;max-width:720px;margin:0 auto 56px;padding:0 24px">
+        <div class="section-tag">Who it’s for</div>
+        <h2 class="section-title" style="margin-bottom:16px">A hub for the people you already know</h2>
+        <p class="section-sub" style="margin:0 auto">Built for neighborhoods, clubs, teams, classes, congregations, and hobby groups. One place to talk, see who’s around, and pick the thread back up later.</p>
+      </div>
+      <div class="security-inner">
+        <div>
+          <div class="section-tag">How it feels</div>
+          <h2 class="section-title">Simple on purpose</h2>
+          <p class="section-sub" style="margin-bottom:24px">No extra apps to juggle. Everyone lands in the same room, history stays put, and the community still feels like a real place when you walk back in.</p>
+          <a href="/auth/register" class="btn-outline" style="display:inline-block">Join this community</a>
+        </div>
+        <div class="security-badges">
+          <div class="sec-badge">
+            <div class="sec-badge-icon"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
+            <div class="sec-badge-name">Gather</div>
+            <div class="sec-badge-desc">Everyone in one room — no extra apps to juggle</div>
+            <div class="sec-badge-status">Always on</div>
+          </div>
+          <div class="sec-badge">
+            <div class="sec-badge-icon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+            <div class="sec-badge-name">Stay in the loop</div>
+            <div class="sec-badge-desc">Live messages and who’s online, so plans don’t get lost</div>
+            <div class="sec-badge-status">Live</div>
+          </div>
+          <div class="sec-badge">
+            <div class="sec-badge-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg></div>
+            <div class="sec-badge-name">Come back anytime</div>
+            <div class="sec-badge-desc">History is saved after practice, class, or the weekend</div>
+            <div class="sec-badge-status">Saved</div>
+          </div>
+          <div class="sec-badge">
+            <div class="sec-badge-icon"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+            <div class="sec-badge-name">Community first</div>
+            <div class="sec-badge-desc">Built for small groups, up to 1,000 people in a room</div>
+            <div class="sec-badge-status">Ready</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="testimonials-section" id="testimonials">
+      <div style="text-align:center">
+        <div class="section-tag">Community stories</div>
+        <h2 class="section-title">Trusted by groups that already know each other</h2>
+      </div>
+      <div class="testi-track-wrap">
+        <div class="testi-track" id="testiTrack"></div>
+      </div>
+    </section>
+
+    <section class="app-section">
+      <div class="app-inner">
+        <div>
+          <div class="section-tag">Join us</div>
+          <h2 class="section-title">Your community, one link away</h2>
+          <p class="section-sub">Sign in, land in the room, and pick up where the group left off.</p>
+          <ul class="tgk-app-features price-features">
+            <li><svg viewBox="0 0 16 16" aria-hidden="true"><polyline points="2,8 6,12 14,4"/></svg>Live room for the whole group</li>
+            <li><svg viewBox="0 0 16 16" aria-hidden="true"><polyline points="2,8 6,12 14,4"/></svg>See who’s around</li>
+            <li><svg viewBox="0 0 16 16" aria-hidden="true"><polyline points="2,8 6,12 14,4"/></svg>History when you come back</li>
+            <li><svg viewBox="0 0 16 16" aria-hidden="true"><polyline points="2,8 6,12 14,4"/></svg>Up to 1,000 people in a room</li>
+          </ul>
+          <a href="/auth/register" class="btn-hero tgk-app-join-btn" data-primary-cta>
+            <span class="cta-label">Join this community</span>
+            <svg viewBox="0 0 16 16" aria-hidden="true"><line x1="3" y1="8" x2="13" y2="8"/><polyline points="9,4 13,8 9,12"/></svg>
+          </a>
+        </div>
+        <div style="display:flex;justify-content:center;align-items:center">
+          <div class="kenya-map-card dc-chat-preview" style="width:min(100%,360px)" aria-hidden="true">
+            <div class="kenya-map-topbar">
+              <div class="dash-dots">
+                <span style="background:#E85A5A"></span>
+                <span style="background:#F0A030"></span>
+                <span style="background:#3DCC8E"></span>
+              </div>
+              <span class="kenya-map-badge" style="margin-left:auto">Online</span>
+            </div>
+            <div class="kenya-map-body">
+              <div class="dc-bubbles">
+                <div class="dc-bubble them"><div class="who">Riverside</div>Welcome in. Scroll back or say hi.<span class="when">Now</span></div>
+                <div class="dc-bubble you">Glad this is all in one place.<span class="when">Now</span></div>
+              </div>
+              <div class="dc-compose">
+                <span>Write a message</span>
+                <em>➤</em>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="faq-section" id="faq">
+      <div class="faq-inner">
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:12px">
+          <div style="text-align:left">
+            <div class="section-tag">Got questions?</div>
+            <h2 class="section-title" id="faq-heading">Frequently asked about the community hub</h2>
+          </div>
+          <button id="faqToggleAll" type="button" style="background:transparent;border:1px solid var(--border2);color:var(--text2);font-family:inherit;font-size:13px;font-weight:500;padding:8px 16px;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:7px;white-space:nowrap;margin-bottom:6px">
+            <svg id="faqToggleIcon" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span id="faqToggleLabel">Expand all</span>
+          </button>
+        </div>
+        <div class="faq-list" id="faqList">
+          <div class="faq-item">
+            <div class="faq-q"><span class="faq-q-text">Who is this for?</span><svg class="faq-chevron" viewBox="0 0 24 24" aria-hidden="true"><polyline points="6,9 12,15 18,9"/></svg></div>
+            <div class="faq-a">Neighborhoods, clubs, teams, classes, congregations, and other small groups that already know each other and want one shared room.</div>
+          </div>
+          <div class="faq-item">
+            <div class="faq-q"><span class="faq-q-text">Is it free to join?</span><svg class="faq-chevron" viewBox="0 0 24 24" aria-hidden="true"><polyline points="6,9 12,15 18,9"/></svg></div>
+            <div class="faq-a">Yes. Create an account on the community page and you’re in the same room as everyone else.</div>
+          </div>
+          <div class="faq-item">
+            <div class="faq-q"><span class="faq-q-text">What if I miss a day?</span><svg class="faq-chevron" viewBox="0 0 24 24" aria-hidden="true"><polyline points="6,9 12,15 18,9"/></svg></div>
+            <div class="faq-a">History is saved. Scroll back when you return — nobody has to recap in private messages.</div>
+          </div>
+          <div class="faq-item">
+            <div class="faq-q"><span class="faq-q-text">How many people can be in the room?</span><svg class="faq-chevron" viewBox="0 0 24 24" aria-hidden="true"><polyline points="6,9 12,15 18,9"/></svg></div>
+            <div class="faq-a">Up to 1,000 people in a room. That’s enough for a neighborhood, a club, or a large class without splitting into extra chats.</div>
+          </div>
+          <div class="faq-item">
+            <div class="faq-q"><span class="faq-q-text">Where do I sign in?</span><svg class="faq-chevron" viewBox="0 0 24 24" aria-hidden="true"><polyline points="6,9 12,15 18,9"/></svg></div>
+            <div class="faq-a">Use <a href="/auth/login">Sign in</a> or <a href="/auth/register">create an account</a>. If you run the space, the <a href="/admin">admin portal</a> is a separate sign-in.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="tgk-site-footer">
+    <div class="tgk-site-footer-inner">
+      <div class="tgk-footer-grid">
+        <div class="tgk-footer-section tgk-footer-brand">
+          <span class="nav-logo-mark" aria-hidden="true" style="margin-bottom:12px">💬</span>
+          <p class="tgk-footer-brand-name">Distributed Chat</p>
+          <p>A community hub for small groups — neighborhoods, clubs, teams, and classes. Talk live and keep everyone in the loop.</p>
+        </div>
+        <div class="tgk-footer-section">
+          <h3>Quick links</h3>
+          <ul class="tgk-footer-links">
+            <li><a href="#home">Home</a></li>
+            <li><a href="#features">Features</a></li>
+            <li><a href="#about">About</a></li>
+            <li><a href="#faq">FAQ</a></li>
+          </ul>
+        </div>
+        <div class="tgk-footer-section">
+          <h3>Community</h3>
+          <ul class="tgk-footer-links">
+            <li><a href="/console/chat">Open the room</a></li>
+            <li><a href="/auth/login">Sign in</a></li>
+            <li><a href="/admin">Admin</a></li>
+          </ul>
+        </div>
+        <div class="tgk-footer-section">
+          <h3>Get started</h3>
+          <p>Land in the same room as everyone else.</p>
+          <a href="/auth/register" class="btn-primary tgk-footer-donate" data-primary-cta>Join this community</a>
+        </div>
+      </div>
+      <div class="tgk-footer-bottom">
+        <div class="tgk-footer-legal">
+          <p class="tgk-footer-copy">&copy;<span class="dc-year">2026</span> Distributed Chat. A hub for small groups — up to 1,000 people in a room.</p>
+        </div>
+        <p class="tgk-footer-tagline">Gather · Talk · Catch up</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="scripts/landing.js" defer></script>
 </body>
 </html>

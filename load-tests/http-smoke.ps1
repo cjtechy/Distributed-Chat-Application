@@ -11,8 +11,8 @@ param(
     [int]$Requests = 2000
 )
 
-Write-Host "==> GET /v1/status ($Requests requests, $Concurrency concurrent)"
-hey -n $Requests -c $Concurrency "$BaseUrl/v1/status"
+Write-Host "==> GET /v1/health ($Requests requests, $Concurrency concurrent)"
+hey -n $Requests -c $Concurrency "$BaseUrl/v1/health"
 
 Write-Host "`n==> Register + GET /v1/messages"
 $suffix = Get-Random -Maximum 99999999

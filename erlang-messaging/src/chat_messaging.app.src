@@ -9,8 +9,5 @@
         cowboy,
         eredis,
         jsone
-    ]},
-    {env, [
-        {port, 8080}
     ]}
 ]}.

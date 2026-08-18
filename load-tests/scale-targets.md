@@ -88,7 +88,7 @@ WebSocket receive → MessageWriter queue → batch INSERT (25 msgs / 50ms) → 
 
 - **Before:** 1 connection + 1 INSERT + 1 COMMIT per message
 - **After:** ~1 INSERT per 25 messages (40× fewer round-trips at steady load)
-- Monitor `/v1/status` → `message_writer_queue` — if it keeps growing, Postgres is falling behind
+- Monitor authenticated `GET /v1/status` → `message_writer_queue` — if it keeps growing, Postgres is falling behind
 
 **If the queue still grows at production scale:**
 

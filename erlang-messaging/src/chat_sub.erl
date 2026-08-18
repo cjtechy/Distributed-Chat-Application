@@ -28,7 +28,10 @@ handle_info({subscribed, _Channel, _Pid}, #{sub := Sub} = State) ->
     {noreply, State};
 handle_info({message, _Channel, Payload, _Pid}, #{sub := Sub} = State) ->
     eredis_sub:ack_message(Sub),
-    chat_clients:broadcast(Payload),
+    case chat_hmac:unwrap(Payload) of
+        {ok, Inner} -> chat_clients:broadcast(Inner);
+        {error, _} -> ok
+    end,
     {noreply, State};
 handle_info({eredis_disconnected, _Pid}, #{sub := Sub} = State) ->
     eredis_sub:ack_message(Sub),

@@ -1,6 +1,6 @@
 # Erlang/OTP messaging service
 
-Separate WebSocket process for live chat. FastAPI stays the HTTP/auth/Postgres service; this node owns concurrent connections.
+WebSocket process for live chat. FastAPI handles HTTP, auth, and Postgres; this node owns all WebSocket connections.
 
 ```
 Frontend --HTTP--> FastAPI --> PostgreSQL
@@ -8,16 +8,40 @@ Frontend --HTTP--> FastAPI --> PostgreSQL
 Frontend --WS---> Erlang/OTP ----^
 ```
 
-- Incoming chat text is published to Redis `chat:inbound`.
-- FastAPI persists it (batched) and republishes on `chat:messages` with a database id.
-- This node fans `chat:messages` out to local WebSocket clients.
+- Incoming chat text is published to Redis `chat:inbound` (HMAC-signed).
+- FastAPI persists it (batched) and republishes on `chat:messages` with a database id (also signed).
+- This node verifies signatures, then fans `chat:messages` out to local WebSocket clients.
 - Typing / online / offline events go directly to `chat:messages` (no Postgres).
+- Clients authenticate with a first-frame `{"type":"auth","ticket"|"token":...}` after `GET /v1/ws-ticket`.
 
-## Run
+## Configuration
 
 Install [Erlang/OTP 26+](https://www.erlang.org/downloads) and [rebar3](https://rebar3.org/).
 
-From the repo root (loads `SECRET_KEY` / Redis settings from `backend/.env`):
+**All settings come from `backend/.env`** — the same file FastAPI uses. No separate Erlang config file and no hardcoded defaults in the BEAM code.
+
+Required keys (see `backend/.env.example`):
+
+| Variable | Used for |
+|----------|----------|
+| `SECRET_KEY` | JWT verification (must match FastAPI) |
+| `ERLANG_WS_PORT` | Cowboy listen port |
+| `REDIS_HOST`, `REDIS_PORT`, `REDIS_DB`, `REDIS_PASSWORD` | Redis connection |
+| `REDIS_CHAT_CHANNEL`, `REDIS_INBOUND_CHANNEL`, `REDIS_ONLINE_KEY` | Pub/Sub channels |
+
+Shell environment variables override values from the file. Set `DOTENV_PATH` to point at a different `.env` file.
+
+## Run
+
+Install [Erlang/OTP 26+](https://www.erlang.org/downloads) first. On Windows:
+
+```powershell
+winget install Erlang.Erlang
+```
+
+Close and reopen PowerShell after install. `start.ps1` downloads a local copy of rebar3 automatically — you do not need to install rebar3 globally.
+
+Start FastAPI first, then from the repo root:
 
 ```powershell
 .\erlang-messaging\start.ps1
@@ -25,7 +49,7 @@ From the repo root (loads `SECRET_KEY` / Redis settings from `backend/.env`):
 
 Health check: [http://127.0.0.1:8080/health](http://127.0.0.1:8080/health)
 
-Then point the frontend at this node:
+The frontend connects here via `WS_BASE` in `frontend/config.js`:
 
 ```javascript
 window.APP_CONFIG = {
@@ -33,5 +57,3 @@ window.APP_CONFIG = {
   WS_BASE: "ws://127.0.0.1:8080/v1",
 };
 ```
-
-If `WS_BASE` is omitted, the browser keeps using FastAPI's WebSocket endpoint.

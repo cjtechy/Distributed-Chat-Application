@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign in — Distributed Chat</title>
+  <meta name="description" content="Sign in to your community room.">
+  <link rel="stylesheet" href="/assets/auth.css">
+</head>
+<body>
+  <a class="skip-link" href="#auth-username">Skip to sign in</a>
+  <div class="auth-page">
+    <aside class="auth-visual">
+      <a class="auth-brand" href="/">
+        <span class="auth-brand-mark" aria-hidden="true">💬</span>
+        Distributed Chat
+      </a>
+      <div class="auth-visual-copy">
+        <span class="tag"><span class="tag-dot" aria-hidden="true"></span> Welcome back</span>
+        <h2>Pick up where the group left off.</h2>
+        <p>Sign in to the shared room. History is waiting, and you’ll see who’s around.</p>
+      </div>
+      <div class="auth-preview" aria-hidden="true">
+        <div class="auth-preview-bar">
+          <span class="dot" style="background:#E85A5A"></span>
+          <span class="dot" style="background:#F0A030"></span>
+          <span class="dot" style="background:#3DCC8E"></span>
+          <span>12 online</span>
+        </div>
+        <div class="auth-preview-body">
+          <div class="bubble them"><div class="who">Maya</div>Park cleanup is Saturday at 9.</div>
+          <div class="bubble you">I’ll bring extra bags from the shop.</div>
+        </div>
+      </div>
+      <ul class="auth-points">
+        <li>
+          <svg width="16" height="16" fill="none" stroke-width="2.4" stroke-linecap="round" viewBox="0 0 16 16" aria-hidden="true"><polyline points="2,8 6,12 14,4"/></svg>
+          One room for the whole community
+        </li>
+        <li>
+          <svg width="16" height="16" fill="none" stroke-width="2.4" stroke-linecap="round" viewBox="0 0 16 16" aria-hidden="true"><polyline points="2,8 6,12 14,4"/></svg>
+          See who’s around before you post
+        </li>
+        <li>
+          <svg width="16" height="16" fill="none" stroke-width="2.4" stroke-linecap="round" viewBox="0 0 16 16" aria-hidden="true"><polyline points="2,8 6,12 14,4"/></svg>
+          Catch up whenever you come back
+        </li>
+      </ul>
+    </aside>
+    <main class="auth-panel">
+      <div class="auth-card">
+        <nav class="auth-switch" aria-label="Account">
+          <a href="/auth/login" aria-current="page">Sign in</a>
+          <a href="/auth/register" data-auth-alt>Create account</a>
+        </nav>
+        <h1>Sign in</h1>
+        <p class="lead">Use your community username and password.</p>
+        <div id="auth-error" class="auth-error" role="alert"></div>
+        <form id="auth-form" data-mode="login" novalidate>
+          <div class="field">
+            <div class="field-head">
+              <label for="auth-username">Username</label>
+            </div>
+            <div class="input-wrap">
+              <input id="auth-username" name="username" type="text" autocomplete="username" spellcheck="false" autocapitalize="off" maxlength="32" required autofocus>
+            </div>
+            <p class="field-error" data-error-for="username"></p>
+          </div>
+          <div class="field">
+            <div class="field-head">
+              <label for="auth-password">Password</label>
+            </div>
+            <div class="input-wrap">
+              <input id="auth-password" class="has-toggle" name="password" type="password" autocomplete="current-password" required>
+              <button class="toggle-secret" type="button" data-toggle-password aria-controls="auth-password" aria-pressed="false">Show</button>
+            </div>
+            <p class="caps-warn" id="caps-warn">Caps Lock is on</p>
+            <p class="field-error" data-error-for="password"></p>
+          </div>
+          <button class="btn-auth" type="submit">
+            <span class="btn-label">Sign in</span>
+          </button>
+        </form>
+        <a class="auth-home" href="/">← Back to home</a>
+      </div>
+    </main>
+  </div>
+  <script src="/config.js"></script>
+  <script src="/scripts/auth.js"></script>
+</body>
+</html>

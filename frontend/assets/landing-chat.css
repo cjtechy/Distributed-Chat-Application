@@ -1,0 +1,162 @@
+/* Overrides so the TGK template serves this chat product, not TGK CDN assets. */
+.hero-bg {
+  background-image: none;
+  background:
+    radial-gradient(ellipse 80% 70% at 15% 20%, rgba(255, 153, 0, 0.22), transparent 55%),
+    radial-gradient(ellipse 60% 50% at 90% 80%, rgba(61, 204, 142, 0.12), transparent 50%),
+    linear-gradient(180deg, #0a0e13 0%, #101820 100%);
+  filter: none;
+}
+
+.hero-bg::after {
+  background: linear-gradient(
+    105deg,
+    rgba(10, 14, 19, 0.55) 0%,
+    rgba(10, 14, 19, 0.2) 55%,
+    rgba(10, 14, 19, 0.35) 100%
+  );
+}
+
+.nav-logo-mark {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--sky), #ea580c);
+  display: grid;
+  place-items: center;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.dc-welcome {
+  display: none;
+  margin-top: 14px;
+  font-size: 14px;
+  color: var(--text2);
+}
+
+.dc-welcome.visible {
+  display: block;
+}
+
+.dc-welcome strong {
+  color: var(--text);
+}
+
+.dc-chat-preview {
+  background: #f1f5f9;
+  color: #0f172a;
+  min-height: 380px;
+  display: flex;
+  flex-direction: column;
+}
+
+.dc-chat-preview .kenya-map-body {
+  flex: 1;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  background: #f1f5f9;
+  min-height: 320px;
+}
+
+.dc-bubbles {
+  flex: 1;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dc-bubble {
+  max-width: 84%;
+  padding: 10px 13px;
+  border-radius: 14px;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.dc-bubble.them {
+  background: #fff;
+  border-bottom-left-radius: 4px;
+  align-self: flex-start;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+.dc-bubble.you {
+  background: #fff7ed;
+  border-bottom-right-radius: 4px;
+  align-self: flex-end;
+}
+
+.dc-bubble .who {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #c2410c;
+  margin-bottom: 2px;
+}
+
+.dc-bubble .when {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.68rem;
+  color: #94a3b8;
+}
+
+.dc-compose {
+  display: flex;
+  gap: 8px;
+  padding: 12px 14px;
+  border-top: 1px solid #e2e8f0;
+  background: #fff;
+}
+
+.dc-compose span {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f1f5f9;
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+.dc-compose em {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--sky);
+  color: #0a1a2c;
+  display: grid;
+  place-items: center;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.panel-view-chat {
+  padding: 0 !important;
+  min-height: 360px;
+}
+
+.panel-view-chat.active {
+  display: flex;
+}
+
+.dc-panel-chat {
+  width: 100%;
+  min-height: 360px;
+  background: #f1f5f9;
+  display: flex;
+  flex-direction: column;
+}
+
+.nav-cta [hidden],
+.mobile-menu [hidden],
+.hero-btns [hidden] {
+  display: none !important;
+}
+
+@media (max-width: 860px) {
+  .dc-chat-preview {
+    min-height: 320px;
+  }
+}

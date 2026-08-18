@@ -6,8 +6,8 @@
  * Run:
  *   k6 run load-tests/ws-load.js
  *
- * Override base URL:
- *   k6 run -e BASE_URL=http://127.0.0.1:8000 load-tests/ws-load.js
+ * Override URLs:
+ *   k6 run -e BASE_URL=http://127.0.0.1:8000 -e WS_URL=ws://127.0.0.1:8080/v1 load-tests/ws-load.js
  */
 
 import { check, sleep } from "k6";
@@ -15,7 +15,7 @@ import http from "k6/http";
 import ws from "k6/ws";
 
 const BASE_URL = __ENV.BASE_URL || "http://127.0.0.1:8000";
-const WS_URL = BASE_URL.replace(/^http/, "ws");
+const WS_URL = __ENV.WS_URL || "ws://127.0.0.1:8080/v1";
 
 export const options = {
   stages: [
@@ -62,10 +62,11 @@ export default function () {
     return;
   }
 
-  const url = `${WS_URL}/v1/ws?token=${encodeURIComponent(user.token)}`;
+  const url = `${WS_URL}/ws?group=1`;
 
   const response = ws.connect(url, {}, (socket) => {
     socket.on("open", () => {
+      socket.send(JSON.stringify({ type: "auth", token: user.token }));
       socket.send(JSON.stringify({ message: `hello from ${user.username}` }));
     });
 

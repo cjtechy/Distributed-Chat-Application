@@ -19,7 +19,9 @@ param(
     [int]$SpawnRate = 0,
     [int]$MaxP95Ms = 500,
     [double]$MaxFailRatio = 0.02,
-    [int]$MaxRuntimeSec = 3600
+    [int]$MaxRuntimeSec = 3600,
+    [string]$WsHost = "ws://127.0.0.1:8080",
+    [int]$RegisterTimeoutSec = 30
 )
 
 $profiles = @{
@@ -60,7 +62,8 @@ Write-Host "  API:        $HostUrl"
 Write-Host "  Start:      $StartUsers users"
 Write-Host "  Max:        $MaxUsers users"
 Write-Host "  Spawn rate: $SpawnRate users/sec (while healthy)"
-Write-Host "  Stop ramp:  p95 > ${MaxP95Ms}ms or failures > ${failPercent}%"
+Write-Host "  Stop ramp:  p95 > ${MaxP95Ms}ms or failures > ${failPercent}% (excludes /v1/register)"
+Write-Host "  WS:         $WsHost"
 Write-Host ""
 
 if ($Profile -eq "Production") {
@@ -80,10 +83,9 @@ if ($Profile -eq "Local" -and $SpawnRate -gt 50) {
 }
 
 try {
-    $status = Invoke-RestMethod -Uri "$HostUrl/v1/status" -TimeoutSec 5
-    $pg = $status.postgres.connected
-    $rd = $status.redis.connected
-    Write-Host "API OK - postgres=$pg redis=$rd"
+    $health = Invoke-RestMethod -Uri "$HostUrl/v1/health" -TimeoutSec 5
+    if (-not $health.ok) { throw "API reported not ok" }
+    Write-Host "API OK"
 }
 catch {
     Write-Host "ERROR: API not reachable at $HostUrl. Start uvicorn first." -ForegroundColor Red
@@ -96,6 +98,8 @@ $env:LOAD_SPAWN_RATE = "$SpawnRate"
 $env:LOAD_MAX_P95_MS = "$MaxP95Ms"
 $env:LOAD_MAX_FAIL_RATIO = "$MaxFailRatio"
 $env:LOAD_MAX_RUNTIME_SEC = "$MaxRuntimeSec"
+$env:WS_HOST = $WsHost
+$env:LOAD_REGISTER_TIMEOUT = "$RegisterTimeoutSec"
 
 Push-Location $backend
 try {

@@ -6,15 +6,17 @@ import bcrypt
 import jwt
 from dotenv import load_dotenv
 
+from app.security import SECRET_KEY
+
 load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=True)
 
-SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-production")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_HOURS = int(os.getenv("JWT_EXPIRE_HOURS", "24"))
+BCRYPT_ROUNDS = int(os.getenv("BCRYPT_ROUNDS", "12"))
 
 
 def hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=BCRYPT_ROUNDS)).decode()
 
 
 def verify_password(password: str, password_hash: str) -> bool:

@@ -7,4 +7,7 @@ __pycache__/
 _build/
 *.beam
 erl_crash.dump
+rebar3.crashdump
 .rebar3/
+erlang-messaging/.tools/
+load-tests/.load-tokens.json

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create account — Distributed Chat</title>
+  <meta name="description" content="Create an account and join the community room.">
+  <link rel="stylesheet" href="/assets/auth.css">
+</head>
+<body>
+  <a class="skip-link" href="#auth-username">Skip to create account</a>
+  <div class="auth-page">
+    <aside class="auth-visual">
+      <a class="auth-brand" href="/">
+        <span class="auth-brand-mark" aria-hidden="true">💬</span>
+        Distributed Chat
+      </a>
+      <div class="auth-visual-copy">
+        <span class="tag"><span class="tag-dot" aria-hidden="true"></span> Join free</span>
+        <h2>Land in the same room as everyone else.</h2>
+        <p>Create an account for your neighborhood, club, team, or class. No extra apps to juggle.</p>
+      </div>
+      <div class="auth-preview" aria-hidden="true">
+        <div class="auth-preview-bar">
+          <span class="dot" style="background:#E85A5A"></span>
+          <span class="dot" style="background:#F0A030"></span>
+          <span class="dot" style="background:#3DCC8E"></span>
+          <span>Online</span>
+        </div>
+        <div class="auth-preview-body">
+          <div class="bubble them"><div class="who">Riverside</div>Welcome in. Scroll back or say hi.</div>
+          <div class="bubble you">Glad this is all in one place.</div>
+        </div>
+      </div>
+      <ul class="auth-points">
+        <li>
+          <svg width="16" height="16" fill="none" stroke-width="2.4" stroke-linecap="round" viewBox="0 0 16 16" aria-hidden="true"><polyline points="2,8 6,12 14,4"/></svg>
+          Free to join — one shared room
+        </li>
+        <li>
+          <svg width="16" height="16" fill="none" stroke-width="2.4" stroke-linecap="round" viewBox="0 0 16 16" aria-hidden="true"><polyline points="2,8 6,12 14,4"/></svg>
+          Username 3–32 characters
+        </li>
+        <li>
+          <svg width="16" height="16" fill="none" stroke-width="2.4" stroke-linecap="round" viewBox="0 0 16 16" aria-hidden="true"><polyline points="2,8 6,12 14,4"/></svg>
+          Password at least 6 characters
+        </li>
+      </ul>
+    </aside>
+    <main class="auth-panel">
+      <div class="auth-card">
+        <nav class="auth-switch" aria-label="Account">
+          <a href="/auth/login" data-auth-alt>Sign in</a>
+          <a href="/auth/register" aria-current="page">Create account</a>
+        </nav>
+        <h1>Create account</h1>
+        <p class="lead">Choose a username the community will know you by.</p>
+        <div id="auth-error" class="auth-error" role="alert"></div>
+        <form id="auth-form" data-mode="register" novalidate>
+          <div class="field">
+            <div class="field-head">
+              <label for="auth-username">Username</label>
+              <span class="field-count" id="username-count">0 / 32</span>
+            </div>
+            <div class="input-wrap">
+              <input id="auth-username" name="username" type="text" autocomplete="username" spellcheck="false" autocapitalize="off" minlength="3" maxlength="32" required autofocus aria-describedby="username-hint username-status">
+            </div>
+            <p class="hint" id="username-hint">3 to 32 characters. This is how people will see you.</p>
+            <p class="username-status" id="username-status" aria-live="polite"></p>
+            <p class="field-error" data-error-for="username"></p>
+          </div>
+          <div class="field">
+            <div class="field-head">
+              <label for="auth-password">Password</label>
+            </div>
+            <div class="input-wrap">
+              <input id="auth-password" class="has-toggle" name="password" type="password" autocomplete="new-password" minlength="6" maxlength="128" required aria-describedby="password-hint">
+              <button class="toggle-secret" type="button" data-toggle-password aria-controls="auth-password" aria-pressed="false">Show</button>
+            </div>
+            <p class="hint" id="password-hint">At least 6 characters.</p>
+            <div class="strength" id="password-strength">
+              <div class="strength-bar" data-level="0" aria-hidden="true"><span></span><span></span><span></span></div>
+              <p class="strength-label" id="strength-label"></p>
+            </div>
+            <p class="caps-warn" id="caps-warn">Caps Lock is on</p>
+            <p class="field-error" data-error-for="password"></p>
+          </div>
+          <div class="field">
+            <div class="field-head">
+              <label for="auth-password-confirm">Confirm password</label>
+            </div>
+            <div class="input-wrap">
+              <input id="auth-password-confirm" class="has-toggle" name="password_confirm" type="password" autocomplete="new-password" minlength="6" required>
+              <button class="toggle-secret" type="button" data-toggle-password aria-controls="auth-password-confirm" aria-pressed="false">Show</button>
+            </div>
+            <p class="field-error" data-error-for="confirm"></p>
+          </div>
+          <button class="btn-auth" type="submit">
+            <span class="btn-label">Create account</span>
+          </button>
+        </form>
+        <a class="auth-home" href="/">← Back to home</a>
+      </div>
+    </main>
+  </div>
+  <script src="/config.js"></script>
+  <script src="/scripts/auth.js"></script>
+</body>
+</html>
