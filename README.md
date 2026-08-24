@@ -78,8 +78,8 @@ Distributed-Chat-Application/
 │   ├── admin.html             Admin portal
 │   └── config.js              API_BASE + WS_BASE
 ├── deploy/
-│   ├── cloudformation.yaml   Database + logic EC2 stack
-│   └── logic.sh              Pull and restart on the logic host
+│   ├── cloudformation.yaml   Database + application EC2 stack (frontend is Amplify)
+│   └── application.sh        Pull and restart on the application host
 └── load-tests/                Locust / k6 / hey helpers
 ```
 
@@ -267,9 +267,16 @@ Frontend URLs live in `frontend/config.js`. Amplify serves that file as-is.
 
 ## Deploy
 
-The UI is static files on **AWS Amplify** from `frontend/`. There is no GitHub Actions deploy.
+The frontend is already on **AWS Amplify**. This CloudFormation stack does not deploy it.
 
-The API and WebSocket nodes are two EC2 instances in one CloudFormation stack: a **database** tier (Postgres + Redis) and a **logic** tier (FastAPI + Erlang + nginx). Passwords are stack parameters (`NoEcho`). Do not put them in the template or commit them.
+It creates two EC2 tiers only:
+
+| Tier | What runs |
+|------|-----------|
+| **Database** | PostgreSQL + Redis |
+| **Application** | FastAPI + Erlang + nginx (API and WebSocket) |
+
+Passwords are stack parameters (`NoEcho`). Do not put them in the template or commit them. `FrontendOrigin` is only CORS for the existing Amplify URL.
 
 Copy `deploy/cloudformation-parameters.example.json` to `deploy/cloudformation-parameters.json` (gitignored), fill in VPC/subnet/key/domains, and set `RedisPassword` to the Redis `requirepass` value. Then:
 
@@ -277,16 +284,15 @@ Copy `deploy/cloudformation-parameters.example.json` to `deploy/cloudformation-p
 aws cloudformation create-stack \
   --stack-name distributed-chat \
   --template-body file://deploy/cloudformation.yaml \
-  --capabilities CAPABILITY_IAM \
   --parameters file://deploy/cloudformation-parameters.json
 ```
 
-Point `ApiDomain` and `WsDomain` A records at the stack output `LogicElasticIp`. If you set `CertbotEmail`, userdata requests Let's Encrypt once DNS matches. Set Amplify `frontend/config.js` to `https://<ApiDomain>/v1` and `wss://<WsDomain>/v1`, and `CORS_ORIGINS` on the logic host to the Amplify origin.
+Point `ApiDomain` and `WsDomain` A records at the stack output `ApplicationElasticIp`. If you set `CertbotEmail`, userdata requests Let's Encrypt once DNS matches.
 
-Logs: `/var/log/chat-db-userdata.log` and `/var/log/chat-logic-userdata.log`. To pull a new commit on the logic host:
+Logs: `/var/log/chat-db-userdata.log` and `/var/log/chat-app-userdata.log`. To pull a new commit on the application host:
 
 ```bash
-sudo -u ubuntu sh /opt/chat/deploy/logic.sh
+sudo -u ubuntu sh /opt/chat/deploy/application.sh
 ```
 
 **Multiple FastAPI processes:** Redis Pub/Sub delivers `chat:inbound` to every subscriber. Only **one** FastAPI process should run the inbound writer, or you will duplicate rows. Extra FastAPI instances can serve HTTP only.

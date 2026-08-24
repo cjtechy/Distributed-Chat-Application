@@ -1,0 +1,14 @@
+.venv
+.git
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/*.egg-info
+erlang-messaging/_build
+erlang-messaging/.tools
+erlang-messaging/.rebar3
+*.beam
+erl_crash.dump
+load-tests/.load-tokens.json
+deploy/cloudformation-parameters.json
+backend/.env

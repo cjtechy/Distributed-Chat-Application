@@ -1,0 +1,14 @@
+version: 1
+applications:
+  - appRoot: frontend
+    frontend:
+      phases:
+        build:
+          commands:
+            - echo "Static frontend — no compile step"
+      artifacts:
+        baseDirectory: .
+        files:
+          - "**/*"
+      cache:
+        paths: []

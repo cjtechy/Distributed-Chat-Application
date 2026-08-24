@@ -70,6 +70,7 @@ from app.redis import (
     invalidate_username_cache,
     issue_ws_ticket,
     publish_message,
+    redis_client,
     redis_status,
     set_call_ring,
     get_call_ring,
@@ -141,6 +142,17 @@ async def lifespan(app: FastAPI):
     db_startup_error = None
     try:
         await open_pool()
+        last_redis_error = None
+        for attempt in range(30):
+            try:
+                await redis_client.ping()
+                last_redis_error = None
+                break
+            except Exception as exc:
+                last_redis_error = exc
+                await asyncio.sleep(2)
+        if last_redis_error is not None:
+            raise last_redis_error
         await sync_group_membership(await list_group_memberships())
         await message_writer.start()
         inbound_task = asyncio.create_task(

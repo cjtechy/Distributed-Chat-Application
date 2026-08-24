@@ -1,6 +1,6 @@
 #!/bin/sh
-# Logic EC2 — FastAPI + Erlang. Run on that host:
-#   sh logic.sh
+# Application-tier EC2 — FastAPI + Erlang. Run on that host:
+#   sh application.sh
 set -eu
 
 APP_DIR="${APP_DIR:-/opt/chat}"
@@ -8,7 +8,7 @@ BRANCH="${DEPLOY_BRANCH:-main}"
 HEALTH_RETRIES="${HEALTH_RETRIES:-30}"
 HEALTH_INTERVAL_SEC="${HEALTH_INTERVAL_SEC:-2}"
 
-log() { echo "[logic] $*"; }
+log() { echo "[application] $*"; }
 
 if [ ! -d "$APP_DIR/.git" ]; then
   log "ERROR: $APP_DIR is not a git checkout."
@@ -32,6 +32,20 @@ log "Installing Python dependencies…"
 log "Compiling Erlang messaging node…"
 cd "$APP_DIR/erlang-messaging"
 rebar3 compile
+
+log "Waiting for Redis and Postgres…"
+REDIS_HOST=$(grep '^REDIS_HOST=' "$APP_DIR/backend/.env" | cut -d= -f2- | tr -d '"')
+POSTGRES_HOST=$(grep '^POSTGRES_HOST=' "$APP_DIR/backend/.env" | cut -d= -f2- | tr -d '"')
+i=1
+while [ "$i" -le 30 ]; do
+  if bash -c "echo >/dev/tcp/${POSTGRES_HOST}/5432" 2>/dev/null && \
+     bash -c "echo >/dev/tcp/${REDIS_HOST}/6379" 2>/dev/null; then
+    break
+  fi
+  log "Database tier not ready ($i/30)…"
+  sleep 2
+  i=$((i + 1))
+done
 
 log "Restarting services…"
 sudo systemctl restart chat-api
