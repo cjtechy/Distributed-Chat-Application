@@ -274,7 +274,7 @@ It creates two EC2 tiers only:
 | Tier | What runs |
 |------|-----------|
 | **Database** | PostgreSQL + Redis |
-| **Application** | FastAPI + Erlang + nginx (API and WebSocket) |
+| **Application** | FastAPI + Erlang + nginx (API and WebSocket) + Coturn (TURN) |
 
 Passwords are stack parameters (`NoEcho`). Do not put them in the template or commit them. `FrontendOrigin` is only CORS for the existing Amplify URL.
 
@@ -287,13 +287,21 @@ aws cloudformation create-stack \
   --parameters file://deploy/cloudformation-parameters.json
 ```
 
-Point `ApiDomain` and `WsDomain` A records at the stack output `ApplicationElasticIp`. If you set `CertbotEmail`, userdata requests Let's Encrypt once DNS matches.
+Point `ApiDomain` and `WsDomain` A records at the stack output `ApplicationElasticIp`. If you set `CertbotEmail`, userdata requests Let's Encrypt once DNS matches. The application security group allows UDP/TCP **3478** and UDP **49160–49200** for Coturn. New instances run `deploy/coturn.sh` and set `TURN_URL` to `turn:<ElasticIP>:3478`. Existing stacks: add those ingress rules (or `update-stack`) then `sudo sh /opt/chat/deploy/coturn.sh`.
 
 Logs: `/var/log/chat-db-userdata.log` and `/var/log/chat-app-userdata.log`. To pull a new commit on the application host:
 
 ```bash
 sudo -u ubuntu sh /opt/chat/deploy/application.sh
 ```
+
+**TURN (calls across different networks):** on the application EC2, open UDP/TCP **3478** and UDP **49160–49200** in the security group, then:
+
+```bash
+sudo sh /opt/chat/deploy/coturn.sh
+```
+
+That installs Coturn, writes `TURN_URL` / `TURN_USERNAME` / `TURN_PASSWORD` into `backend/.env`, and restarts `chat-api`.
 
 **Multiple FastAPI processes:** Redis Pub/Sub delivers `chat:inbound` to every subscriber. Only **one** FastAPI process should run the inbound writer, or you will duplicate rows. Extra FastAPI instances can serve HTTP only.
 
