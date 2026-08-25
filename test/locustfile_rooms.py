@@ -27,6 +27,9 @@ from websocket import WebSocketConnectionClosedException, create_connection
 _user_id_lock = threading.Lock()
 _next_user_id = 0
 _token_pool: list[tuple[str, str]] | None = None
+_slot_names: dict[int, str] = {}
+_room_ids: dict[int, int] = {}
+_room_lock = threading.Lock()
 _direct_pair_lock = threading.Lock()
 _direct_pair_names: dict[int, str] = {}
 _next_direct_slot = 0
