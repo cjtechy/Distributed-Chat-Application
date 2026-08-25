@@ -1,10 +1,10 @@
 """
 Load test the REST API with Locust.
 
-Run from the backend folder (Erlang messaging node must be running on WS_HOST, default ws://127.0.0.1:8080):
-  pip install -r requirements-dev.txt
-  locust -f locustfile.py --host=http://127.0.0.1:8000
-  WS_HOST=ws://127.0.0.1:8080 locust -f locustfile.py --host=http://127.0.0.1:8000 --headless
+Run from the repo root (Erlang must be running on WS_HOST, default ws://127.0.0.1:8080):
+  pip install -r test/requirements.txt
+  locust -f test/locustfile.py --host=http://127.0.0.1:8000
+  WS_HOST=ws://127.0.0.1:8080 locust -f test/locustfile.py --host=http://127.0.0.1:8000 --headless
 """
 
 import json

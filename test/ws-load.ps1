@@ -2,9 +2,9 @@
 # Pre-seeds users + JWT tokens once, then ramps WS-only (no HTTP auth during ramp).
 #
 # Usage:
-#   .\load-tests\ws-load.ps1
-#   .\load-tests\ws-load.ps1 -WsConnections 500 -SpawnRate 10
-#   .\load-tests\ws-load.ps1 -SkipSeed
+#   .\test\ws-load.ps1
+#   .\test\ws-load.ps1 -WsConnections 500 -SpawnRate 10
+#   .\test\ws-load.ps1 -SkipSeed
 
 param(
     [string]$HostUrl = "http://127.0.0.1:8000",
@@ -25,7 +25,7 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $python = Join-Path $root ".venv\Scripts\python.exe"
 $locust = Join-Path $root ".venv\Scripts\locust.exe"
-$backend = Join-Path $root "backend"
+$testDir = Join-Path $root "test"
 $tokenFile = Join-Path $PSScriptRoot ".load-tokens.json"
 $failPercent = [math]::Round($MaxFailRatio * 100, 2)
 
@@ -51,7 +51,7 @@ catch {
 if (-not $SkipSeed) {
     Write-Host ""
     Write-Host "Seeding $WsConnections users + tokens (set BCRYPT_ROUNDS=4 in backend/.env to speed this up) ..."
-    & $python (Join-Path $backend "seed_load_users.py") `
+    & $python (Join-Path $testDir "seed_load_users.py") `
         --host $HostUrl `
         --count $WsConnections `
         --prefix $UserPrefix `
@@ -83,7 +83,7 @@ $env:LOAD_MAX_FAIL_RATIO = "$MaxFailRatio"
 $env:LOAD_MAX_RUNTIME_SEC = "$MaxRuntimeSec"
 $env:WS_HOST = $WsHost
 
-Push-Location $backend
+Push-Location $testDir
 try {
     & $locust -f locustfile.py --host $HostUrl --headless
 }

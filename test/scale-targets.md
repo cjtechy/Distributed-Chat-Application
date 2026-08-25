@@ -105,7 +105,7 @@ WebSocket receive → MessageWriter queue → batch INSERT (25 msgs / 50ms) → 
 ### Step 1 — Local (what you do now)
 
 ```powershell
-.\load-tests\adaptive-load.ps1 -Profile Local
+.\test\adaptive-load.ps1 -Profile Local
 ```
 
 Finds your **local capacity ceiling** (~20 WS users).
@@ -115,7 +115,7 @@ Finds your **local capacity ceiling** (~20 WS users).
 Deploy backend to cloud (Railway, AWS, GCP). Run:
 
 ```powershell
-.\load-tests\adaptive-load.ps1 -Profile Staging -HostUrl https://api.staging.example.com
+.\test\adaptive-load.ps1 -Profile Staging -HostUrl https://api.staging.example.com
 ```
 
 Uses **500 users/sec** spawn rate against a small cluster.
@@ -126,10 +126,10 @@ Uses **500 users/sec** spawn rate against a small cluster.
 
 ```bash
 # Master (cloud VM)
-locust -f locustfile.py --master --host=https://api.example.com
+locust -f test/locustfile.py --master --host=https://api.example.com
 
 # Workers (10–100+ VMs)
-locust -f locustfile.py --worker --master-host=<master-ip>
+locust -f test/locustfile.py --worker --master-host=<master-ip>
 ```
 
 Set environment variables on workers:

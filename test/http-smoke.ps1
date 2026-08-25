@@ -2,8 +2,8 @@
 # Install hey: go install github.com/rakyll/hey@latest
 #
 # Usage:
-#   .\load-tests\http-smoke.ps1
-#   .\load-tests\http-smoke.ps1 -BaseUrl http://127.0.0.1:8000 -Concurrency 100
+#   .\test\http-smoke.ps1
+#   .\test\http-smoke.ps1 -BaseUrl http://127.0.0.1:8000 -Concurrency 100
 
 param(
     [string]$BaseUrl = "http://127.0.0.1:8000",

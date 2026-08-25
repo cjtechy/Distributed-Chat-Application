@@ -66,9 +66,17 @@ Distributed-Chat-Application/
 │   │   ├── auth.py            JWT + passwords
 │   │   ├── security.py        HMAC bus, cookies, rate limits
 │   │   └── models.py          Request/response shapes
-│   ├── locustfile.py          REST + WebSocket load tests
-│   ├── seed_load_users.py     Pre-register users for WS load tests
 │   └── .env.example
+├── test/
+│   ├── locustfile.py          REST + Community WebSocket load
+│   ├── locustfile_rooms.py    Groups + DM WebSocket load
+│   ├── seed_load_users.py     Pre-register users and mint JWTs
+│   ├── rooms-load.sh          Headless groups/DM runner (Linux)
+│   ├── adaptive-load.ps1      Adaptive Locust ramp
+│   ├── ws-load.ps1            WebSocket cap test
+│   ├── ws-load.js             k6 WebSocket script
+│   ├── http-smoke.ps1         hey HTTP smoke
+│   └── scale-targets.md       100k users/sec notes
 ├── erlang-messaging/          Cowboy WebSocket node (chat + call fan-out)
 ├── frontend/
 │   ├── index.html             Landing
@@ -86,7 +94,6 @@ Distributed-Chat-Application/
 ├── deploy/
 │   ├── cloudformation.yaml   Database + application EC2 stack (frontend is Amplify)
 │   └── application.sh        Pull and restart on the application host
-└── load-tests/                Locust / k6 / hey helpers
 ```
 
 `frontend/chat.html` only redirects to `/console/chat`.
@@ -370,22 +377,39 @@ That installs Coturn, writes `TURN_URL` / `TURN_USERNAME` / `TURN_PASSWORD` into
 Start FastAPI **without** `--reload` and keep Erlang running.
 
 ```powershell
-pip install -r backend\requirements-dev.txt
+pip install -r test\requirements.txt
 ```
 
 | Tool | Script |
 |------|--------|
-| Locust (REST + WS) | `cd backend` then `locust -f locustfile.py --host=http://127.0.0.1:8000` → [http://localhost:8089](http://localhost:8089) |
-| Adaptive ramp | `.\load-tests\adaptive-load.ps1` (local default: 5 users/sec, max 200) |
-| WebSocket cap test | `.\load-tests\ws-load.ps1` (pre-seeds JWTs; default 1000 connections) |
-| k6 | `k6 run load-tests\ws-load.js` |
-| HTTP smoke | `.\load-tests\http-smoke.ps1` |
+| Locust (REST + WS) | `locust -f test/locustfile.py --host=http://127.0.0.1:8000` → [http://localhost:8089](http://localhost:8089) |
+| Groups + DMs | `sh test/rooms-load.sh` (see below) |
+| Adaptive ramp | `.\test\adaptive-load.ps1` (local default: 5 users/sec, max 200) |
+| WebSocket cap test | `.\test\ws-load.ps1` (pre-seeds JWTs; default 1000 connections) |
+| k6 | `k6 run test/ws-load.js` |
+| HTTP smoke | `.\test\http-smoke.ps1` |
 
 Adaptive health **ignores** `/v1/register` and `/v1/login` so bcrypt does not dominate p95.
 
 `ws-load.ps1` optional: `BCRYPT_ROUNDS=4` in `.env` (dev only) before seeding, then restart uvicorn. Reuse tokens with `-SkipSeed`.
 
-Cloud-scale Locust profiles (`Staging` / `Production`) are documented in [load-tests/scale-targets.md](load-tests/scale-targets.md). They are not something this laptop stack can run.
+**Groups and DMs** (not everyone in Community). Seed tokens, then on the app host:
+
+```bash
+/opt/chat/.venv/bin/python /opt/chat/test/seed_load_users.py \
+  --host http://127.0.0.1:8000 --count 400 --tokens-out /tmp/load-tokens.json
+
+# mixed: ~half in LOAD_GROUP_COUNT rooms, ~half in 1:1 DMs
+USERS=400 SPAWN=10 TIME=120s LOAD_ROOM_MODE=mixed LOAD_GROUP_COUNT=20 \
+  sh /opt/chat/test/rooms-load.sh
+
+LOAD_ROOM_MODE=groups USERS=400 LOAD_GROUP_COUNT=20 sh /opt/chat/test/rooms-load.sh
+LOAD_ROOM_MODE=direct USERS=200 sh /opt/chat/test/rooms-load.sh
+```
+
+Look at `WS /v1/ws group send` and `WS /v1/ws direct send` separately. This locustfile honors `-u` (no adaptive shape). Use an even `USERS` count for DMs so pairing works.
+
+Cloud-scale Locust profiles (`Staging` / `Production`) are documented in [test/scale-targets.md](test/scale-targets.md). They are not something this laptop stack can run.
 
 While tests run: [http://127.0.0.1:8000/v1/health](http://127.0.0.1:8000/v1/health) and [http://127.0.0.1:8080/health](http://127.0.0.1:8080/health).
 

@@ -4,10 +4,10 @@
  * Install k6: https://k6.io/docs/get-started/installation/
  *
  * Run:
- *   k6 run load-tests/ws-load.js
+ *   k6 run test/ws-load.js
  *
  * Override URLs:
- *   k6 run -e BASE_URL=http://127.0.0.1:8000 -e WS_URL=ws://127.0.0.1:8080/v1 load-tests/ws-load.js
+ *   k6 run -e BASE_URL=http://127.0.0.1:8000 -e WS_URL=ws://127.0.0.1:8080/v1 test/ws-load.js
  */
 
 import { check, sleep } from "k6";

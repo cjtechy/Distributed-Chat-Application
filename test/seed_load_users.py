@@ -2,8 +2,8 @@
 Pre-register load-test users and mint JWT tokens (one-time, offline).
 
 Usage:
-  python seed_load_users.py --count 2000
-  python seed_load_users.py --count 2000 --tokens-out ../load-tests/.load-tokens.json
+  python test/seed_load_users.py --count 2000
+  python test/seed_load_users.py --count 2000 --tokens-out test/.load-tokens.json
 """
 
 from __future__ import annotations

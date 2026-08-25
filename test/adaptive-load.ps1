@@ -6,9 +6,9 @@
 #   Production - design target: 100_000 users/sec (distributed Locust only!)
 #
 # Usage:
-#   .\load-tests\adaptive-load.ps1
-#   .\load-tests\adaptive-load.ps1 -Profile Staging -HostUrl https://api.example.com
-#   .\load-tests\adaptive-load.ps1 -Profile Production -HostUrl https://api.example.com
+#   .\test\adaptive-load.ps1
+#   .\test\adaptive-load.ps1 -Profile Staging -HostUrl https://api.example.com
+#   .\test\adaptive-load.ps1 -Profile Production -HostUrl https://api.example.com
 
 param(
     [ValidateSet("Local", "Staging", "Production")]
@@ -54,7 +54,7 @@ if ($Profile -ne "Local" -and $MaxP95Ms -eq 500) { $MaxP95Ms = $p.MaxP95Ms }
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $locust = Join-Path $root ".venv\Scripts\locust.exe"
-$backend = Join-Path $root "backend"
+$testDir = Join-Path $root "test"
 $failPercent = [math]::Round($MaxFailRatio * 100, 2)
 
 Write-Host "Adaptive load test [$Profile profile]"
@@ -69,7 +69,7 @@ Write-Host ""
 if ($Profile -eq "Production") {
     Write-Host "WARNING: 100,000 users/sec requires DISTRIBUTED Locust workers on cloud VMs." -ForegroundColor Yellow
     Write-Host "         Do not run Production profile against localhost." -ForegroundColor Yellow
-    Write-Host "         See load-tests/scale-targets.md" -ForegroundColor Yellow
+    Write-Host "         See test/scale-targets.md" -ForegroundColor Yellow
     Write-Host ""
     if ($HostUrl -match "127\.0\.0\.1|localhost") {
         Write-Host "ERROR: Production profile cannot target localhost." -ForegroundColor Red
@@ -101,7 +101,7 @@ $env:LOAD_MAX_RUNTIME_SEC = "$MaxRuntimeSec"
 $env:WS_HOST = $WsHost
 $env:LOAD_REGISTER_TIMEOUT = "$RegisterTimeoutSec"
 
-Push-Location $backend
+Push-Location $testDir
 try {
     & $locust -f locustfile.py --host $HostUrl --headless
 }

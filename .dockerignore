@@ -10,5 +10,6 @@ erlang-messaging/.rebar3
 *.beam
 erl_crash.dump
 load-tests/.load-tokens.json
+test/.load-tokens.json
 deploy/cloudformation-parameters.json
 backend/.env
