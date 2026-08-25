@@ -86,6 +86,9 @@ from app.redis import (
     set_call_busy,
     user_is_busy,
     clear_call_busy_if,
+    set_group_live_call,
+    get_group_live_call,
+    clear_group_live_call,
     group_member_names,
     start_inbound_subscriber,
     sync_group_membership,
@@ -448,6 +451,9 @@ async def webrtc_signal(request: Request, username: str = Depends(get_current_us
         for target in targets:
             await set_call_ring(target, event, ttl=40)
             await set_call_busy(target, call_id, ttl=50)
+        group = await get_group(group_id, username)
+        if group and not group.get("is_direct"):
+            await set_group_live_call(group_id, event, ttl=180)
         return {"ok": True}
 
     await publish_message(event)
@@ -458,6 +464,20 @@ async def webrtc_signal(request: Request, username: str = Depends(get_current_us
         await set_call_busy(username, call_id, ttl=120)
         if event.get("to"):
             await set_call_busy(event["to"], call_id, ttl=120)
+        group = await get_group(group_id, username)
+        if group and not group.get("is_direct"):
+            live = await get_group_live_call(group_id)
+            host = (live or {}).get("from") or event.get("to") or username
+            media = (live or {}).get("media") or event.get("media") or "video"
+            await set_group_live_call(
+                group_id,
+                {"call_id": call_id, "from": host, "media": media},
+                ttl=300,
+            )
+    elif signal_type in {"call_offer", "call_answer", "call_ice"}:
+        live = await get_group_live_call(group_id)
+        if live and live.get("call_id") == call_id:
+            await set_group_live_call(group_id, live, ttl=300)
     elif signal_type == "call_reject":
         await clear_call_ring(username)
         await clear_call_busy_if(username, call_id)
@@ -479,6 +499,10 @@ async def webrtc_signal(request: Request, username: str = Depends(get_current_us
             for target in targets:
                 await clear_call_ring(target)
                 await clear_call_busy_if(target, call_id)
+            await clear_group_live_call(group_id, call_id)
+        group = await get_group(group_id, username)
+        if group and group.get("is_direct"):
+            await clear_group_live_call(group_id, call_id)
     return {"ok": True}
 
 
@@ -486,6 +510,21 @@ async def webrtc_signal(request: Request, username: str = Depends(get_current_us
 async def webrtc_inbox(username: str = Depends(get_current_user)):
     invite = await get_call_ring(username)
     return {"invite": invite}
+
+
+@api_v1.get("/webrtc/live")
+async def webrtc_live(username: str = Depends(get_current_user)):
+    groups = await list_groups(username)
+    calls = []
+    for group in groups:
+        if not group.get("is_member") or group.get("is_direct"):
+            continue
+        live = await get_group_live_call(int(group["id"]))
+        if not live:
+            continue
+        live["name"] = group.get("name")
+        calls.append(live)
+    return {"calls": calls}
 
 
 @api_v1.post("/webrtc/sfu/{call_id}")

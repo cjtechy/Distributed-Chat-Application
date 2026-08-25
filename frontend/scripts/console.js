@@ -439,9 +439,10 @@
   function threadRow(item, extra) {
     var name = item.name || item.peer || item.username || "Chat";
     var unread = Number(item.unread_count) || 0;
+    var live = item.live_call;
     var clickable = Boolean(item.id) && !extra;
     var row = document.createElement(clickable ? "a" : "div");
-    row.className = "wa-thread" + (unread ? " has-unread" : "");
+    row.className = "wa-thread" + (unread ? " has-unread" : "") + (live ? " has-live-call" : "");
     if (clickable) {
       row.href = "/console/chat?group=" + encodeURIComponent(item.id);
       var activeGroup = new URLSearchParams(window.location.search).get("group");
@@ -466,7 +467,9 @@
     bottom.className = "wa-thread-bottom";
     var snippet = document.createElement("span");
     snippet.className = "wa-thread-snippet" + (item.show_presence && item.online ? " is-online" : "");
-    snippet.textContent = threadSnippet(item);
+    snippet.textContent = live
+      ? (live.media === "audio" ? "Ongoing voice call" : "Ongoing video call")
+      : threadSnippet(item);
     bottom.appendChild(snippet);
     if (unread) {
       var badge = document.createElement("span");
@@ -688,6 +691,7 @@
   if (!inboxList) return;
 
   var inboxItems = [];
+  var liveByGroup = {};
   var inboxFilter = "all";
   var inboxCount = document.getElementById("inbox-count");
   var searchWrap = document.getElementById("inbox-search-wrap");
@@ -706,6 +710,14 @@
         .toLowerCase();
       return hay.indexOf(query) !== -1;
     });
+    items.sort(function (a, b) {
+      var aLive = liveByGroup[String(a.id)] ? 1 : 0;
+      var bLive = liveByGroup[String(b.id)] ? 1 : 0;
+      if (aLive !== bLive) return bLive - aLive;
+      var aTime = Date.parse(a.last_at || a.created_at || 0) || 0;
+      var bTime = Date.parse(b.last_at || b.created_at || 0) || 0;
+      return bTime - aTime;
+    });
     inboxList.replaceChildren();
     inboxList.removeAttribute("aria-busy");
     if (!items.length) {
@@ -713,7 +725,8 @@
       return;
     }
     items.forEach(function (item) {
-      inboxList.appendChild(threadRow(item));
+      var rowItem = Object.assign({}, item, { live_call: liveByGroup[String(item.id)] || null });
+      inboxList.appendChild(threadRow(rowItem));
     });
   }
 
@@ -791,4 +804,12 @@
   }
 
   loadInboxThreads();
+
+  document.addEventListener("dc-group-calls", function (event) {
+    liveByGroup = {};
+    (event.detail || []).forEach(function (call) {
+      if (call && call.group_id != null) liveByGroup[String(call.group_id)] = call;
+    });
+    if (inboxList && inboxItems.length) paintInbox(searchInput && searchInput.value);
+  });
 })();

@@ -808,6 +808,11 @@ body.console-chat .console-main {
   color: inherit;
 }
 
+.wa-thread.has-live-call .wa-thread-snippet {
+  color: #00e5c3;
+  font-weight: 600;
+}
+
 .wa-thread .avatar {
   width: 52px;
   height: 52px;

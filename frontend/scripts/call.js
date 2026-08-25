@@ -28,6 +28,9 @@
     bound: false,
     pollTimer: null,
     polling: false,
+    liveTimer: null,
+    pollingLive: false,
+    liveCalls: [],
     groupId: null,
     pendingAccept: null,
   };
@@ -514,6 +517,7 @@
     show(el("call-ring"), false);
     show(el("call-active"), false);
     setCallButtonsEnabled(true);
+    paintLiveBanner();
   }
 
   function createPeerConnection(peer) {
@@ -791,6 +795,7 @@
       }
     }
     setCallButtonsEnabled(false);
+    paintLiveBanner();
   }
 
   function takePendingJoin() {
@@ -1030,6 +1035,65 @@
     closePeer(name);
   }
 
+  function emitLive(calls) {
+    state.liveCalls = Array.isArray(calls) ? calls : [];
+    try {
+      document.dispatchEvent(new CustomEvent("dc-group-calls", { detail: state.liveCalls }));
+    } catch {
+      // Ignore missing CustomEvent support.
+    }
+    paintLiveBanner();
+  }
+
+  function paintLiveBanner() {
+    const banner = el("group-call-banner");
+    if (!banner) return;
+    const gid = Number(groupId() || 0);
+    const live = (state.liveCalls || []).find(function (call) {
+      return Number(call.group_id) === gid;
+    });
+    const inThis = Boolean(live && state.callId && String(state.callId) === String(live.call_id));
+    const show = Boolean(live && !inThis && !peerName() && !state.incoming);
+    banner.hidden = !show;
+    const text = el("group-call-banner-text");
+    if (text && live) {
+      const kind = live.media === "audio" ? "voice" : "video";
+      text.textContent = "Ongoing group " + kind + " call";
+    }
+  }
+
+  function joinLive(live) {
+    if (!live || !live.call_id) return;
+    state.incoming = {
+      type: CALL_TYPES.invite,
+      call_id: live.call_id,
+      from: live.from,
+      group_id: live.group_id,
+      media: live.media || "video",
+    };
+    acceptIncoming().catch(function () {});
+  }
+
+  async function pollLive() {
+    const base = apiBase();
+    const auth = token();
+    if (!base || !auth || state.pollingLive) return;
+    state.pollingLive = true;
+    try {
+      const response = await fetch(`${base}/webrtc/live`, {
+        headers: { Authorization: `Bearer ${auth}` },
+        timeoutMs: 4000,
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      emitLive(Array.isArray(data.calls) ? data.calls : []);
+    } catch {
+      // Keep polling quietly.
+    } finally {
+      state.pollingLive = false;
+    }
+  }
+
   async function pollInbox() {
     const base = apiBase();
     const auth = token();
@@ -1068,6 +1132,13 @@
     el("call-hangup")?.addEventListener("click", hangup);
     el("call-mute")?.addEventListener("click", toggleMute);
     el("call-camera")?.addEventListener("click", toggleCamera);
+    el("group-call-join")?.addEventListener("click", function () {
+      const gid = Number(groupId() || 0);
+      const live = (state.liveCalls || []).find(function (call) {
+        return Number(call.group_id) === gid;
+      });
+      joinLive(live);
+    });
   }
 
   global.ChatCall = {
@@ -1078,11 +1149,18 @@
       setCallButtonsEnabled(true);
       if (!state.pollTimer) {
         pollInbox();
+        pollLive();
         state.pollTimer = setInterval(pollInbox, 800);
+        state.liveTimer = setInterval(pollLive, 2500);
         document.addEventListener("visibilitychange", () => {
-          if (!document.hidden) pollInbox();
+          if (!document.hidden) {
+            pollInbox();
+            pollLive();
+          }
         });
       }
+      paintLiveBanner();
+      pollLive();
       try {
         takePendingJoin();
       } catch {
@@ -1101,5 +1179,6 @@
       }
     },
     hangup,
+    joinLive,
   };
 })(window);

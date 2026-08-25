@@ -195,6 +195,54 @@ a {
   flex-shrink: 0;
 }
 
+.group-call-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  padding: 8px 14px;
+  background: rgba(0, 229, 195, 0.12);
+  border-bottom: 1px solid rgba(0, 229, 195, 0.35);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.group-call-banner[hidden] {
+  display: none;
+}
+
+.group-call-banner-pulse {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #00e5c3;
+  box-shadow: 0 0 0 0 rgba(0, 229, 195, 0.6);
+  animation: group-call-pulse 1.6s ease-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes group-call-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(0, 229, 195, 0.55); }
+  70% { box-shadow: 0 0 0 8px rgba(0, 229, 195, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(0, 229, 195, 0); }
+}
+
+.group-call-banner span#group-call-banner-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.group-call-banner button {
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 14px;
+  background: #00e5c3;
+  color: #04110e;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+}
+
 .header-back:hover {
   background: rgba(255, 255, 255, 0.06);
   color: var(--text);

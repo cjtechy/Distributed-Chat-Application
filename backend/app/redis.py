@@ -203,6 +203,42 @@ async def clear_call_busy_if(username: str, call_id: str) -> None:
         await clear_call_busy(username)
 
 
+def group_live_call_key(group_id: int) -> str:
+    return f"chat:call:live:{int(group_id)}"
+
+
+async def set_group_live_call(group_id: int, event: dict, ttl: int = 180) -> None:
+    payload = {
+        "type": "call_invite",
+        "call_id": str(event.get("call_id") or ""),
+        "from": str(event.get("from") or "")[:32],
+        "group_id": int(group_id),
+        "media": event.get("media") if event.get("media") in {"audio", "video"} else "video",
+    }
+    if not payload["call_id"] or not payload["from"]:
+        return
+    await redis_client.setex(group_live_call_key(group_id), ttl, json.dumps(payload))
+
+
+async def get_group_live_call(group_id: int) -> dict | None:
+    raw = await redis_client.get(group_live_call_key(group_id))
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+async def clear_group_live_call(group_id: int, call_id: str | None = None) -> None:
+    if call_id:
+        current = await get_group_live_call(group_id)
+        if not current or current.get("call_id") != call_id:
+            return
+    await redis_client.delete(group_live_call_key(group_id))
+
+
 async def group_member_names(group_id: int) -> set[str]:
     try:
         members = await redis_client.smembers(group_members_key(group_id))
