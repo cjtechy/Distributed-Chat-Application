@@ -6,7 +6,7 @@
   <title>Admin — Distributed Chat</title>
   <link rel="stylesheet" href="/assets/auth.css">
   <link rel="stylesheet" href="/assets/console.css?v=layout">
-  <link rel="stylesheet" href="/assets/admin.css?v=layout">
+  <link rel="stylesheet" href="/assets/admin.css?v=wide">
 </head>
 <body class="admin-auth">
   <a class="skip-link" href="#login-username">Skip to admin sign in</a>
@@ -109,10 +109,6 @@
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.6.9 1 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
           <span>Settings</span>
         </a>
-        <a href="/admin" data-nav="/admin" aria-current="page" aria-label="Admin">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 4v5c0 5-3.4 8-8 9-4.6-1-8-4-8-9V7l8-4z"/><path d="M9 12l2 2 4-5"/></svg>
-          <span>Admin</span>
-        </a>
       </div>
       <div class="console-user">
         <span class="rail-avatar" id="rail-avatar" aria-hidden="true">?</span>
@@ -146,20 +142,22 @@
 
           <div class="stat-grid" id="stats"></div>
 
-          <article class="panel-card admin-status-card">
-            <div class="admin-panel-top">
-              <h2>Health</h2>
-              <span class="admin-live-dot" aria-hidden="true"></span>
-            </div>
-            <p class="health" id="health">Checking…</p>
-          </article>
+          <div class="admin-meta">
+            <article class="panel-card admin-status-card">
+              <div class="admin-panel-top">
+                <h2>Health</h2>
+                <span class="admin-live-dot" aria-hidden="true"></span>
+              </div>
+              <p class="health" id="health">Checking…</p>
+            </article>
 
-          <article class="panel-card admin-status-card">
-            <div class="admin-panel-top">
-              <h2>Online now</h2>
-            </div>
-            <ul class="online-pills" id="online"></ul>
-          </article>
+            <article class="panel-card admin-status-card">
+              <div class="admin-panel-top">
+                <h2>Online now</h2>
+              </div>
+              <ul class="online-pills" id="online"></ul>
+            </article>
+          </div>
         </section>
 
         <section class="admin-data-pane">
@@ -184,6 +182,6 @@
   <script src="/config.js"></script>
   <script src="/scripts/http.js"></script>
   <script src="/scripts/console.js?v=layout"></script>
-  <script src="/scripts/admin.js?v=layout"></script>
+  <script src="/scripts/admin.js?v=wide"></script>
 </body>
 </html>

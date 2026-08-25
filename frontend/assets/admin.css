@@ -7,6 +7,10 @@ body.admin-auth,
   --admin-chat: #10100f;
 }
 
+html, body.admin-dash {
+  height: 100%;
+}
+
 body.admin-dash {
   overflow: hidden;
   background: var(--admin-shell);
@@ -18,21 +22,31 @@ body.admin-dash .admin-page {
 }
 
 .admin-page .console-main {
-  display: block;
+  display: flex !important;
   min-height: 0;
   overflow: hidden;
   background: var(--admin-shell);
 }
 
+body.admin-dash .console-main::after,
+body.admin-dash:not(.console-chat):not(.console-home) .console-main::after,
 .admin-page .console-main::after {
+  content: none !important;
   display: none !important;
+  flex: 0 0 0 !important;
+  width: 0 !important;
+  min-width: 0 !important;
 }
 
 .admin-shell {
   display: grid;
-  grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  flex: 1 1 auto;
   width: 100%;
+  max-width: none;
   height: 100%;
+  min-width: 0;
   min-height: 0;
   overflow: hidden;
   background: var(--admin-shell);
@@ -43,26 +57,30 @@ body.admin-dash .admin-page {
   flex-direction: column;
   gap: 12px;
   min-width: 0;
-  min-height: 0;
-  padding: 18px 14px;
-  overflow-y: auto;
-  background: var(--admin-pane);
-  border-right: 1px solid var(--admin-line);
+  padding: 20px 22px 8px;
+  overflow: visible;
+  background: transparent;
+  border-right: 0;
+}
+
+.admin-meta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
 }
 
 .admin-data-pane {
   min-width: 0;
   min-height: 0;
-  padding: 18px;
-  overflow-y: auto;
-  background-color: var(--admin-chat);
-  background-image:
-    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.022) 0 1px, transparent 1px 14px),
-    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.014) 0 1px, transparent 1px 14px);
-  background-size: 20px 20px;
+  padding: 8px 22px 22px;
+  overflow: hidden;
+  background: transparent;
+  background-image: none;
   display: grid;
-  gap: 14px;
-  align-content: start;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  gap: 16px;
+  align-content: stretch;
+  align-items: stretch;
 }
 
 .admin-head,
@@ -119,8 +137,8 @@ body.admin-dash .admin-page {
 }
 
 .admin-page .stat-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
   margin-bottom: 0;
 }
 
@@ -253,10 +271,14 @@ body.admin-dash .admin-page {
   background: rgba(255, 255, 255, 0.035);
 }
 
-.admin-table .msg {
-  max-width: 420px;
-  color: var(--text);
-  word-break: break-word;
+.admin-table .admin-email {
+  color: var(--text3);
+  word-break: break-all;
+}
+
+.admin-table .pill {
+  margin-left: 8px;
+  vertical-align: middle;
 }
 
 .pill {
@@ -381,6 +403,10 @@ body.admin-dash .auth-page {
     min-height: 0;
     overflow: visible;
     border-right: 0;
+  }
+
+  .admin-meta {
+    grid-template-columns: 1fr;
   }
 
   .admin-overview-pane {
@@ -561,24 +587,11 @@ body.admin-dash .admin-page {
   z-index: 5;
 }
 
-.admin-shell {
-  grid-template-columns: minmax(320px, 372px) minmax(0, 1fr);
-}
-
-.admin-overview-pane {
-  padding: 18px 16px;
-}
-
-.admin-data-pane {
-  grid-template-columns: minmax(0, 1.08fr) minmax(320px, 0.92fr);
-  gap: 16px;
-  align-items: start;
-}
-
 .admin-panel {
   display: flex;
   flex-direction: column;
-  min-height: min(650px, calc(100dvh - 36px));
+  min-height: 0;
+  height: 100%;
   overflow: hidden;
 }
 
@@ -589,6 +602,10 @@ body.admin-dash .admin-page {
 
 .admin-table-wrap {
   max-height: 100%;
+}
+
+.admin-table {
+  min-width: 0;
 }
 
 .admin-table thead th {
@@ -621,12 +638,18 @@ body.admin-dash .admin-page {
 }
 
 @media (max-width: 1180px) {
+  .admin-page .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .admin-data-pane {
     grid-template-columns: 1fr;
+    overflow: auto;
   }
 
   .admin-panel {
-    min-height: auto;
+    min-height: 280px;
+    height: auto;
   }
 }
 

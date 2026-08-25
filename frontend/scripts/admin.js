@@ -165,16 +165,18 @@
     }
     setHtml(
       "members",
-      '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Name</th><th>Joined</th><th>Role</th><th></th></tr></thead><tbody>' +
+      '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Name</th><th>Email</th><th>Joined</th><th></th></tr></thead><tbody>' +
       members
         .map(function (m) {
+          var email = (m.email || "").trim();
           return (
             "<tr><td>" +
             escapeHtml(m.username) +
+            (m.is_admin ? ' <span class="pill">Admin</span>' : "") +
+            "</td><td class=\"admin-email\">" +
+            (email ? escapeHtml(email) : "—") +
             "</td><td>" +
             formatTime(m.created_at) +
-            "</td><td>" +
-            (m.is_admin ? '<span class="pill">Admin</span>' : "Member") +
             '</td><td class="row-actions">' +
             '<button class="btn-ghost" type="button" data-role="' +
             escapeHtml(m.username) +

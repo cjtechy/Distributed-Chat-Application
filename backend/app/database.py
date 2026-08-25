@@ -228,6 +228,7 @@ def _public_user(row: tuple) -> dict:
         "username": row[1],
         "created_at": row[2].isoformat(),
         "is_admin": bool(row[3]),
+        "email": (row[4] if len(row) > 4 else None) or "",
     }
 
 
@@ -292,7 +293,7 @@ async def list_members(limit: int = 200) -> list[dict]:
     async with pool.connection() as conn:
         result = await conn.execute(
             """
-            SELECT id, username, created_at, is_admin
+            SELECT id, username, created_at, is_admin, email
             FROM users
             ORDER BY is_admin DESC, created_at ASC
             LIMIT %s
@@ -317,7 +318,7 @@ async def set_member_admin(username: str, is_admin: bool) -> dict | None:
             UPDATE users
             SET is_admin = %s
             WHERE username = %s
-            RETURNING id, username, created_at, is_admin
+            RETURNING id, username, created_at, is_admin, email
             """,
             (is_admin, username),
         )
