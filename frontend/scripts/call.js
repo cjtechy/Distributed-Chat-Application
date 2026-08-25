@@ -24,12 +24,16 @@
     incoming: null,
     connected: false,
     sfuPc: null,
+    host: null,
     bound: false,
     pollTimer: null,
     polling: false,
     groupId: null,
     pendingAccept: null,
   };
+
+  const CALL_RING_TIMEOUT_MS = 40000;
+  let ringTimeoutTimer = null;
 
   function el(id) {
     return document.getElementById(id);
@@ -43,14 +47,34 @@
     root.hidden = true;
     root.innerHTML = `
       <div id="call-ring" class="call-ring" hidden>
-        <div class="call-ring-glow" aria-hidden="true"></div>
-        <div id="call-ring-avatar" class="call-ring-avatar">?</div>
-        <h2 id="call-ring-name">Calling…</h2>
-        <p id="call-ring-status">Ringing</p>
-        <div class="call-ring-actions">
-          <button id="call-reject" class="call-btn call-btn-reject" type="button">Decline</button>
-          <button id="call-cancel" class="call-btn call-btn-reject" type="button" hidden>Cancel</button>
-          <button id="call-accept" class="call-btn call-btn-accept" type="button">Accept</button>
+        <div class="call-ring-shell">
+          <div class="call-ring-glow" aria-hidden="true"></div>
+          <div class="call-ring-avatar-wrap">
+            <div id="call-ring-avatar" class="call-ring-avatar">?</div>
+          </div>
+          <span id="call-ring-label" class="call-ring-label">Call</span>
+          <h2 id="call-ring-name">Calling...</h2>
+          <p id="call-ring-status">Ringing</p>
+          <div class="call-ring-actions">
+            <button id="call-reject" class="call-btn call-btn-reject" type="button" aria-label="Decline call">
+              <span class="call-btn-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.89.33 1.76.62 2.59a2 2 0 0 1-.45 2.11L8 9.72a16 16 0 0 0 6.28 6.28l1.3-1.28a2 2 0 0 1 2.11-.45c.83.29 1.7.5 2.59.62A2 2 0 0 1 22 16.92Z"/><path d="m15 9 6-6"/><path d="m21 9-6-6"/></svg>
+              </span>
+              <span>Decline</span>
+            </button>
+            <button id="call-cancel" class="call-btn call-btn-reject" type="button" aria-label="Cancel call" hidden>
+              <span class="call-btn-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.89.33 1.76.62 2.59a2 2 0 0 1-.45 2.11L8 9.72a16 16 0 0 0 6.28 6.28l1.3-1.28a2 2 0 0 1 2.11-.45c.83.29 1.7.5 2.59.62A2 2 0 0 1 22 16.92Z"/><path d="m15 9 6-6"/><path d="m21 9-6-6"/></svg>
+              </span>
+              <span>Cancel</span>
+            </button>
+            <button id="call-accept" class="call-btn call-btn-accept" type="button" aria-label="Accept call">
+              <span class="call-btn-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.89.33 1.76.62 2.59a2 2 0 0 1-.45 2.11L8 9.72a16 16 0 0 0 6.28 6.28l1.3-1.28a2 2 0 0 1 2.11-.45c.83.29 1.7.5 2.59.62A2 2 0 0 1 22 16.92Z"/></svg>
+              </span>
+              <span>Accept</span>
+            </button>
+          </div>
         </div>
       </div>
       <div id="call-active" class="call-active" hidden>
@@ -61,28 +85,43 @@
           <span id="call-status">Connecting…</span>
         </div>
         <div class="call-controls">
-          <button id="call-mute" class="call-ctrl" type="button" aria-label="Mute">Mic</button>
-          <button id="call-camera" class="call-ctrl" type="button" aria-label="Camera">Cam</button>
-          <button id="call-hangup" class="call-ctrl call-ctrl-end" type="button" aria-label="End call">End</button>
+          <button id="call-mute" class="call-ctrl" type="button" aria-label="Mute">
+            <span class="call-ctrl-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></svg>
+            </span>
+            <span>Mic</span>
+          </button>
+          <button id="call-camera" class="call-ctrl" type="button" aria-label="Camera">
+            <span class="call-ctrl-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="m16 13 5 3V8l-5 3Z"/><rect x="3" y="6" width="13" height="12" rx="2"/></svg>
+            </span>
+            <span>Cam</span>
+          </button>
+          <button id="call-hangup" class="call-ctrl call-ctrl-end" type="button" aria-label="End call">
+            <span class="call-ctrl-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.89.33 1.76.62 2.59a2 2 0 0 1-.45 2.11L8 9.72a16 16 0 0 0 6.28 6.28l1.3-1.28a2 2 0 0 1 2.11-.45c.83.29 1.7.5 2.59.62A2 2 0 0 1 22 16.92Z"/><path d="m15 9 6-6"/><path d="m21 9-6-6"/></svg>
+            </span>
+            <span>End</span>
+          </button>
         </div>
       </div>`;
     document.body.appendChild(root);
     if (!document.querySelector('link[href*="chat.css"]')) {
       const link = document.createElement("link");
       link.rel = "stylesheet";
-      link.href = "/assets/chat.css?v=phone";
+      link.href = "/assets/chat.css?v=layout";
       document.head.appendChild(link);
     }
   }
 
-  function send(payload) {
+  function postSignal(payload) {
     const gid = Number(payload.group_id || activeGroupId()) || 0;
     const body = Object.assign({}, payload, { group_id: gid });
     const base = apiBase();
     const auth = token();
-    if (!base || !auth) return Promise.resolve(false);
+    if (!base || !auth) return Promise.resolve({ ok: false, data: {} });
     if (!body.group_id && body.type !== CALL_TYPES.reject && body.type !== CALL_TYPES.hangup) {
-      return Promise.resolve(false);
+      return Promise.resolve({ ok: false, data: {} });
     }
     return fetch(`${base}/webrtc/signal`, {
       method: "POST",
@@ -94,8 +133,23 @@
       body: JSON.stringify(body),
       timeoutMs: 8000,
     })
-      .then((response) => response.ok)
-      .catch(() => false);
+      .then(function (response) {
+        return response.json().catch(function () { return {}; }).then(function (data) {
+          return { ok: response.ok, data: data || {} };
+        });
+      })
+      .then(function (result) {
+        return result;
+      })
+      .catch(function () {
+        return { ok: false, data: {} };
+      });
+  }
+
+  function send(payload) {
+    return postSignal(payload).then(function (result) {
+      return Boolean(result && result.ok);
+    });
   }
 
   function username() {
@@ -139,6 +193,30 @@
   function setStatusText(text) {
     const status = el("call-status");
     if (status) status.textContent = text || "";
+  }
+
+  function clearRingTimeout() {
+    if (ringTimeoutTimer) {
+      clearTimeout(ringTimeoutTimer);
+      ringTimeoutTimer = null;
+    }
+  }
+
+  function armRingTimeout(callId) {
+    clearRingTimeout();
+    const id = callId || state.callId || (state.incoming && state.incoming.call_id);
+    ringTimeoutTimer = setTimeout(function () {
+      ringTimeoutTimer = null;
+      const ring = el("call-ring");
+      if (!ring || ring.hidden) return;
+      const sameOutgoing = state.role === "caller" && state.callId && state.callId === id;
+      const sameIncoming = state.incoming && state.incoming.call_id === id;
+      if (!sameOutgoing && !sameIncoming) return;
+      const status = el("call-ring-status");
+      if (status) status.textContent = "No answer";
+      if (sameIncoming) rejectIncoming();
+      else hangup();
+    }, CALL_RING_TIMEOUT_MS);
   }
 
   function setOverlay(open, kind) {
@@ -236,6 +314,12 @@
 
   function startRingtone(kind) {
     stopRingtone();
+    if (global.chatNotify && typeof global.chatNotify.enabled === "function" && !global.chatNotify.enabled("callSound")) {
+      if (kind === "in" && global.chatNotify.enabled("vibrate") && navigator.vibrate) {
+        navigator.vibrate([180, 80, 180]);
+      }
+      return;
+    }
     const ctx = getAudioCtx();
     if (!ctx) return;
 
@@ -265,25 +349,30 @@
     ringback();
   }
 
-  function showRing(kind, name, status) {
+  function showRing(kind, name, status, playSound) {
     ensureOverlay();
+    const ring = el("call-ring");
     const ringName = el("call-ring-name");
     const ringStatus = el("call-ring-status");
+    const ringLabel = el("call-ring-label");
     const avatar = el("call-ring-avatar");
+    if (ringLabel) ringLabel.textContent = kind === "in" ? "Incoming call" : "Outgoing call";
     if (ringName) ringName.textContent = name || "Call";
     if (ringStatus) ringStatus.textContent = status || "";
     if (avatar) avatar.textContent = initialFor(name);
-    show(el("call-ring"), true);
+    if (ring) ring.classList.toggle("is-ringing", kind === "out" && /ringing/i.test(String(status || "")));
+    show(ring, true);
     show(el("call-active"), false);
     show(el("call-accept"), kind === "in");
     show(el("call-reject"), kind === "in");
     show(el("call-cancel"), kind === "out");
     setOverlay(true, kind === "in" ? "incoming" : "outgoing");
-    startRingtone(kind === "in" ? "in" : "out");
+    if (playSound !== false) startRingtone(kind === "in" ? "in" : "out");
   }
 
   function showLive(name, status) {
     ensureOverlay();
+    clearRingTimeout();
     stopRingtone();
     const title = el("call-title");
     if (title) title.textContent = name || "Call";
@@ -317,6 +406,7 @@
     node.dataset.peer = peer;
     node.innerHTML = `<video autoplay playsinline></video><span class="call-remote-name">${escapeHtml(peer)}</span>`;
     wrap.appendChild(node);
+    wrap.classList.add("has-remotes");
     return node.querySelector("video");
   }
 
@@ -330,7 +420,10 @@
 
   function clearRemotes() {
     const wrap = remoteContainer();
-    if (wrap) wrap.innerHTML = "";
+    if (wrap) {
+      wrap.innerHTML = "";
+      wrap.classList.remove("has-remotes");
+    }
   }
 
   async function loadIce() {
@@ -373,6 +466,7 @@
     const wrap = remoteContainer();
     const node = wrap && wrap.querySelector(`[data-peer="${CSS.escape(peer)}"]`);
     if (node) node.remove();
+    if (wrap && !wrap.querySelector(".call-remote")) wrap.classList.remove("has-remotes");
   }
 
   function closeAllPeers() {
@@ -408,10 +502,14 @@
     state.callId = null;
     state.role = null;
     state.incoming = null;
+    state.host = null;
     state.groupId = null;
     state.media = "video";
+    clearRingTimeout();
     stopRingtone();
     clearRemotes();
+    const ring = el("call-ring");
+    if (ring) ring.classList.remove("is-ringing");
     setOverlay(false);
     show(el("call-ring"), false);
     show(el("call-active"), false);
@@ -573,25 +671,75 @@
     });
   }
 
+  async function isCalleeOnline() {
+    if (state.opts && typeof state.opts.getPeerOnline === "function" && state.opts.getPeerOnline()) {
+      return true;
+    }
+    const peer = peerName();
+    if (!peer) return true;
+    const base = apiBase();
+    const gid = groupId();
+    const auth = token();
+    if (!base || !gid || !auth) return false;
+    try {
+      const response = await fetch(`${base}/groups/${gid}`, {
+        headers: { Authorization: `Bearer ${auth}` },
+        timeoutMs: 4000,
+      });
+      if (!response.ok) return false;
+      const group = await response.json();
+      if (group.is_direct) return Boolean(group.online);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async function startCall(media) {
     if (state.callId || state.incoming) return;
     ensureOverlay();
     state.media = media;
     state.role = "caller";
+    state.host = username();
     state.callId = global.crypto?.randomUUID ? crypto.randomUUID() : `call-${Date.now()}`;
     state.groupId = groupId();
     const name = peerName() || "Group call";
-    showRing("out", name, media === "audio" ? "Voice call · ringing…" : "Video call · ringing…");
+    showRing("out", name, "Calling...", false);
     setCallButtonsEnabled(false);
-    const ok = await send({
+    armRingTimeout(state.callId);
+    const online = await isCalleeOnline();
+    if (!state.callId || state.role !== "caller") return;
+    const ring = el("call-ring");
+    const ringStatus = el("call-ring-status");
+    if (online) {
+      if (ringStatus) ringStatus.textContent = "Ringing";
+      if (ring) ring.classList.add("is-ringing");
+      startRingtone("out");
+    } else if (ringStatus) {
+      ringStatus.textContent = "They're not online";
+      if (ring) ring.classList.remove("is-ringing");
+    }
+    const result = await postSignal({
       type: CALL_TYPES.invite,
       call_id: state.callId,
       media,
       to: peerName() || undefined,
     });
-    if (!ok) {
-      const status = el("call-ring-status");
-      if (status) status.textContent = "Could not reach them. Try again.";
+    if (result.data && result.data.busy) {
+      if (ringStatus) ringStatus.textContent = "Busy";
+      if (ring) ring.classList.remove("is-ringing");
+      stopRingtone();
+      clearRingTimeout();
+      const endedId = state.callId;
+      setTimeout(function () {
+        if (state.callId === endedId) resetCall();
+      }, 1600);
+      return;
+    }
+    if (!result.ok) {
+      if (ringStatus) ringStatus.textContent = "Could not reach them. Try again.";
+      if (ring) ring.classList.remove("is-ringing");
+      stopRingtone();
       return;
     }
     try {
@@ -628,6 +776,7 @@
     state.callId = invite.call_id;
     state.media = invite.media || "video";
     state.role = "callee";
+    state.host = invite.from || null;
     state.groupId = invite.group_id || groupId();
     state.incoming = null;
     attachLocalVideo();
@@ -670,6 +819,7 @@
   }
 
   function rejectIncoming() {
+    clearRingTimeout();
     const invite = state.incoming;
     if (invite) {
       send({ type: CALL_TYPES.reject, call_id: invite.call_id, to: invite.from, group_id: invite.group_id });
@@ -682,7 +832,13 @@
 
   function hangup() {
     if (state.callId) {
-      send({ type: CALL_TYPES.hangup, call_id: state.callId, to: peerName() || undefined });
+      const isGroup = !peerName();
+      send({
+        type: CALL_TYPES.hangup,
+        call_id: state.callId,
+        to: peerName() || undefined,
+        scope: isGroup && state.role === "caller" ? "all" : "leave",
+      });
     }
     resetCall();
   }
@@ -702,7 +858,7 @@
     state.incoming = invite;
     state.groupId = invite.group_id || state.groupId;
     const status = el("call-ring-status");
-    if (status) status.textContent = "Connecting…";
+      if (status) status.textContent = "Connecting...";
     acceptIncoming().catch(() => {});
   }
 
@@ -711,11 +867,59 @@
     if (invite.call_id === state.callId) return true;
     if (mineWinsGlare(invite.call_id)) {
       const status = el("call-ring-status");
-      if (status) status.textContent = "They called you too · connecting…";
+      if (status) status.textContent = "Connecting...";
       return true;
     }
     yieldToInvite(invite);
     return true;
+  }
+
+  function dismissIncoming(data) {
+    const callId = data && data.call_id ? data.call_id : data;
+    if (!state.incoming || state.incoming.call_id !== callId) return false;
+    if (data && data.from && state.incoming.from && data.from !== state.incoming.from && !data.to) return false;
+    state.incoming = null;
+    stopRingtone();
+    setOverlay(false);
+    show(el("call-ring"), false);
+    return true;
+  }
+
+  function isDirectCall() {
+    return Boolean(peerName());
+  }
+
+  function handleRemoteReject(data) {
+    if (!data || (data.to && data.to !== username())) return;
+    if (dismissIncoming(data)) return;
+    if (!state.callId || data.call_id !== state.callId) return;
+    if (isDirectCall()) {
+      resetCall();
+      return;
+    }
+    const status = el("call-ring-status");
+    if (state.role === "caller" && status && data.from) {
+      status.textContent = `${data.from} declined`;
+    }
+    if (data.from) closePeer(data.from);
+    if (state.peers.size) setStatusText("Connected");
+  }
+
+  function handleRemoteHangup(data) {
+    if (!data || (data.to && data.to !== username())) return;
+    if (dismissIncoming(data)) return;
+    if (!state.callId || data.call_id !== state.callId) return;
+    if (isDirectCall()) {
+      resetCall();
+      return;
+    }
+    const from = data.from || "";
+    if (from && from === state.host && state.role !== "caller") {
+      resetCall();
+      return;
+    }
+    if (from) closePeer(from);
+    setStatusText(state.peers.size || state.sfuPc ? "Connected" : "Waiting for others...");
   }
 
   function toggleMute() {
@@ -763,7 +967,7 @@
   function handle(data) {
     if (!data || !data.type) return false;
     if (!String(data.type).startsWith("call_")) return false;
-    if (data.to && data.to !== username() && data.type !== CALL_TYPES.invite && data.type !== CALL_TYPES.hangup) {
+    if (data.to && data.to !== username() && data.type !== CALL_TYPES.hangup) {
       return true;
     }
     if (data.from === username() && data.type !== CALL_TYPES.sfuOffer) return true;
@@ -783,6 +987,7 @@
         data.from || "Someone",
         data.media === "audio" ? "Incoming voice call" : "Incoming video call"
       );
+      armRingTimeout(data.call_id);
       return true;
     }
 
@@ -792,14 +997,12 @@
       return true;
     }
 
-    if (data.type === CALL_TYPES.reject || data.type === CALL_TYPES.hangup) {
-      if (state.callId && data.call_id === state.callId) resetCall();
-      if (state.incoming && data.call_id === state.incoming.call_id) {
-        state.incoming = null;
-        stopRingtone();
-        setOverlay(false);
-        show(el("call-ring"), false);
-      }
+    if (data.type === CALL_TYPES.reject) {
+      handleRemoteReject(data);
+      return true;
+    }
+    if (data.type === CALL_TYPES.hangup) {
+      handleRemoteHangup(data);
       return true;
     }
 

@@ -42,6 +42,7 @@ from app.database import (
     mark_group_read,
     mark_messages_delivered,
     mark_messages_viewed,
+    mark_delivered_for_recipient,
     list_members,
     open_pool,
     postgres_status,
@@ -49,6 +50,7 @@ from app.database import (
     set_member_admin,
     unread_inbox,
     update_message,
+    update_user_email,
 )
 from app.message_writer import message_writer
 from app.models import (
@@ -57,6 +59,7 @@ from app.models import (
     ChatMessage,
     CreateGroupRequest,
     DirectChatRequest,
+    EmailUpdateRequest,
     LoginRequest,
     RegisterRequest,
     UpdateMessageRequest,
@@ -64,20 +67,29 @@ from app.models import (
 )
 from app.redis import (
     add_group_member_cache,
+    apply_peer_presence,
+    apply_presence,
     cache_username_taken,
     get_cached_username_taken,
     get_online_users,
     invalidate_username_cache,
     issue_ws_ticket,
+    heartbeat_app,
+    mark_app_offline,
+    presence_for,
     publish_message,
     redis_client,
     redis_status,
     set_call_ring,
     get_call_ring,
     clear_call_ring,
+    set_call_busy,
+    user_is_busy,
+    clear_call_busy_if,
     group_member_names,
     start_inbound_subscriber,
     sync_group_membership,
+    touch_last_seen,
 )
 from app.security import (
     MESSAGE_MAX_LENGTH,
@@ -105,6 +117,8 @@ def _cors_origins() -> list[str]:
             "http://localhost:5500",
             "http://127.0.0.1:8000",
             "http://localhost:8000",
+            "http://127.0.0.1",
+            "http://localhost",
         ]
     return [origin.strip() for origin in raw.split(",") if origin.strip()]
 
@@ -211,6 +225,13 @@ async def handle_erlang_inbound(data: dict) -> None:
     except ValidationError:
         return
     saved = await message_writer.save(username, chat_message.message, group_id)
+    others = [name for name in await list_group_usernames(group_id) if name != username]
+    if others:
+        lookup = await presence_for(others)
+        if any(lookup.get(name, {}).get("online") for name in others):
+            changed = await mark_messages_delivered(others[0], [saved["id"]])
+            if changed:
+                saved = {**saved, "delivered": True}
     await publish_message(saved)
 
 
@@ -301,6 +322,7 @@ async def register(payload: RegisterRequest, request: Request, response: Respons
     await add_group_member_cache(await ensure_default_group(), payload.username)
     token = create_access_token(payload.username)
     set_session_cookie(response, token)
+    await touch_last_seen(payload.username)
     return AuthResponse(access_token=token, username=payload.username, is_admin=is_admin)
 
 
@@ -313,6 +335,7 @@ async def login(payload: LoginRequest, request: Request, response: Response):
 
     token = create_access_token(user["username"])
     set_session_cookie(response, token)
+    await touch_last_seen(user["username"])
     return AuthResponse(
         access_token=token,
         username=user["username"],
@@ -321,7 +344,8 @@ async def login(payload: LoginRequest, request: Request, response: Response):
 
 
 @api_v1.post("/logout")
-async def logout(response: Response):
+async def logout(response: Response, username: str = Depends(get_current_user)):
+    await mark_app_offline(username)
     clear_session_cookie(response)
     return {"ok": True}
 
@@ -329,6 +353,7 @@ async def logout(response: Response):
 @api_v1.get("/ws-ticket")
 async def ws_ticket(username: str = Depends(get_current_user)):
     ticket = await issue_ws_ticket(username)
+    await touch_last_seen(username)
     return {"ticket": ticket, "expires_in": 30}
 
 
@@ -391,24 +416,69 @@ async def webrtc_signal(request: Request, username: str = Depends(get_current_us
         event["to"] = str(body["to"])[:32]
     if body.get("media") in {"audio", "video"}:
         event["media"] = body["media"]
+    if body.get("scope") in {"all", "leave"}:
+        event["scope"] = body["scope"]
     if isinstance(body.get("sdp"), str) and body["sdp"]:
         event["sdp"] = body["sdp"][:200000]
     if isinstance(body.get("candidate"), dict):
         event["candidate"] = body["candidate"]
-    await publish_message(event)
+
     if signal_type == "call_invite":
+        if await user_is_busy(username, except_call_id=call_id):
+            return {"ok": True, "busy": True}
         targets = set(await list_group_usernames(group_id))
         targets.update(await group_member_names(group_id))
         targets.update(await get_online_users(group_id))
         if event.get("to"):
             targets.add(event["to"])
         targets.discard(username)
+        blocked = set()
+        for target in list(targets):
+            if await user_is_busy(target, except_call_id=call_id):
+                blocked.add(target)
+        to = event.get("to")
+        if to and to in blocked:
+            return {"ok": True, "busy": True}
+        if blocked:
+            targets -= blocked
+        if not targets:
+            return {"ok": True, "busy": True}
+        await publish_message(event)
+        await set_call_busy(username, call_id, ttl=50)
         for target in targets:
-            await set_call_ring(target, event, ttl=60)
-    elif signal_type in {"call_reject", "call_hangup", "call_accept"}:
+            await set_call_ring(target, event, ttl=40)
+            await set_call_busy(target, call_id, ttl=50)
+        return {"ok": True}
+
+    await publish_message(event)
+    if signal_type == "call_accept":
         await clear_call_ring(username)
         if event.get("to"):
             await clear_call_ring(event["to"])
+        await set_call_busy(username, call_id, ttl=120)
+        if event.get("to"):
+            await set_call_busy(event["to"], call_id, ttl=120)
+    elif signal_type == "call_reject":
+        await clear_call_ring(username)
+        await clear_call_busy_if(username, call_id)
+        if event.get("to"):
+            group = await get_group(group_id, username)
+            if group and group.get("is_direct"):
+                await clear_call_ring(event["to"])
+                await clear_call_busy_if(event["to"], call_id)
+    elif signal_type == "call_hangup":
+        await clear_call_ring(username)
+        await clear_call_busy_if(username, call_id)
+        if event.get("to"):
+            await clear_call_ring(event["to"])
+            await clear_call_busy_if(event["to"], call_id)
+        elif event.get("scope") == "all":
+            targets = set(await list_group_usernames(group_id))
+            targets.update(await group_member_names(group_id))
+            targets.update(await get_online_users(group_id))
+            for target in targets:
+                await clear_call_ring(target)
+                await clear_call_busy_if(target, call_id)
     return {"ok": True}
 
 
@@ -458,10 +528,51 @@ async def webrtc_sfu_leave(call_id: str, username: str = Depends(get_current_use
 @api_v1.get("/me")
 async def me(username: str = Depends(get_current_user)):
     user = await get_user_by_username(username)
+    became_online = await heartbeat_app(username)
+    if became_online:
+        await publish_message({"type": "presence", "username": username, "online": True})
+    asyncio.create_task(_ack_in_app(username))
     return {
         "username": username,
         "is_admin": bool(user and user.get("is_admin")),
+        "email": (user or {}).get("email") or "",
     }
+
+
+async def update_me_email(body: EmailUpdateRequest, username: str) -> dict:
+    try:
+        user = await update_user_email(username, body.email)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {
+        "username": user["username"],
+        "is_admin": bool(user.get("is_admin")),
+        "email": user.get("email") or "",
+    }
+
+
+@api_v1.patch("/me")
+async def update_me(body: EmailUpdateRequest, username: str = Depends(get_current_user)):
+    return await update_me_email(body, username)
+
+
+@api_v1.post("/me")
+async def update_me_post(body: EmailUpdateRequest, username: str = Depends(get_current_user)):
+    return await update_me_email(body, username)
+
+
+async def _ack_in_app(username: str) -> None:
+    try:
+        rows = await mark_delivered_for_recipient(username)
+        grouped: dict[int, list[int]] = {}
+        for message_id, group_id in rows:
+            grouped.setdefault(group_id, []).append(message_id)
+        for group_id, ids in grouped.items():
+            await publish_message({"type": "delivered", "ids": ids, "group_id": group_id})
+    except Exception:
+        return
 
 
 @api_v1.get("/groups")
@@ -487,7 +598,7 @@ async def groups_get(group_id: int, username: str = Depends(get_current_user)):
     if not group["is_member"]:
         raise HTTPException(status_code=403, detail="You are not a member of this group")
     await add_group_member_cache(group_id, username)
-    return group
+    return await apply_peer_presence(group)
 
 
 @api_v1.post("/groups/{group_id}/join")
@@ -505,12 +616,12 @@ async def groups_join(group_id: int, username: str = Depends(get_current_user)):
 
 @api_v1.get("/people")
 async def people(username: str = Depends(get_current_user)):
-    return await list_people(username)
+    return await apply_presence(await list_people(username))
 
 
 @api_v1.get("/direct")
 async def direct_chats(username: str = Depends(get_current_user)):
-    return await list_direct_chats(username)
+    return await apply_presence(await list_direct_chats(username), key="peer")
 
 
 @api_v1.get("/inbox")

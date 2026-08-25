@@ -83,10 +83,116 @@
     return openAppDialog(Object.assign({ prompt: true, danger: false }, options));
   };
 
+  var NOTIFY_KEY = "chat_notify_prefs";
+  var NOTIFY_DEFAULTS = {
+    messageSound: true,
+    messageWhileTyping: true,
+    typingSound: true,
+    voiceSound: true,
+    callSound: true,
+    vibrate: true
+  };
+
+  function readNotifyPrefs() {
+    var merged = Object.assign({}, NOTIFY_DEFAULTS);
+    try {
+      var raw = localStorage.getItem(NOTIFY_KEY);
+      if (!raw) return merged;
+      var parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object") {
+        Object.keys(NOTIFY_DEFAULTS).forEach(function (key) {
+          if (typeof parsed[key] === "boolean") merged[key] = parsed[key];
+        });
+      }
+    } catch (err) {}
+    return merged;
+  }
+
+  window.chatNotify = {
+    defaults: NOTIFY_DEFAULTS,
+    get: readNotifyPrefs,
+    enabled: function (key) {
+      var prefs = readNotifyPrefs();
+      if (Object.prototype.hasOwnProperty.call(prefs, key)) return prefs[key];
+      return true;
+    },
+    set: function (partial) {
+      var next = Object.assign(readNotifyPrefs(), partial || {});
+      localStorage.setItem(NOTIFY_KEY, JSON.stringify(next));
+      return next;
+    }
+  };
+
+  var LANG_KEY = "chat_lang";
+  var APP_LANGS = [
+    { id: "device", name: "Device language", hint: "Use this phone's language" },
+    { id: "en", name: "English", hint: "English" },
+    { id: "en-GB", name: "English (UK)", hint: "English (United Kingdom)" },
+    { id: "he", name: "Hebrew", hint: "עברית" },
+    { id: "ar", name: "Arabic", hint: "العربية" },
+    { id: "el", name: "Greek", hint: "Ελληνικά" },
+    { id: "ru", name: "Russian", hint: "Русский" },
+    { id: "tr", name: "Turkish", hint: "Türkçe" },
+    { id: "fr", name: "French", hint: "Français" },
+    { id: "de", name: "German", hint: "Deutsch" },
+    { id: "es", name: "Spanish", hint: "Español" },
+    { id: "uk", name: "Ukrainian", hint: "Українська" }
+  ];
+
+  function selectedLangId() {
+    var id = localStorage.getItem(LANG_KEY) || "device";
+    var known = APP_LANGS.some(function (item) { return item.id === id; });
+    return known ? id : "device";
+  }
+
+  function langHtmlTag(id) {
+    if (id === "device") return (navigator.language || "en").split("-")[0] || "en";
+    return id;
+  }
+
+  function languageSummary() {
+    var id = selectedLangId();
+    if (id === "device") {
+      var navLow = (navigator.language || "en").toLowerCase();
+      var match = APP_LANGS.filter(function (item) { return item.id !== "device"; })
+        .slice()
+        .sort(function (a, b) { return b.id.length - a.id.length; })
+        .find(function (item) {
+          var code = item.id.toLowerCase();
+          return navLow === code || navLow.indexOf(code + "-") === 0 || (code.indexOf("-") === -1 && navLow.split("-")[0] === code);
+        });
+      return (match ? match.hint : (navigator.language || "en")) + " (device's language)";
+    }
+    var item = APP_LANGS.find(function (row) { return row.id === id; });
+    return item ? item.hint : "English";
+  }
+
+  function applyAppLang() {
+    document.documentElement.lang = langHtmlTag(selectedLangId());
+    var label = document.getElementById("settings-language-label");
+    if (label) label.textContent = languageSummary();
+  }
+
+  window.chatLang = {
+    list: APP_LANGS,
+    get: selectedLangId,
+    set: function (id) {
+      localStorage.setItem(LANG_KEY, id);
+      applyAppLang();
+      return id;
+    },
+    summary: languageSummary
+  };
+
+  applyAppLang();
+
   var token = localStorage.getItem("token");
   var username = localStorage.getItem("username");
   var next = window.location.pathname || "/console";
   var path = (window.location.pathname || "").replace(/\/$/, "") || "/console";
+  path = path.replace(/\/index\.html$/i, "").replace(/\.html$/i, "") || "/console";
+  if (path.indexOf("/console/chat") === 0) path = "/console";
+  if (path.indexOf("/console/settings") === 0) path = "/console/settings";
   if (!token || !username) {
     if (path === "/admin" || path === "/admin.html") return;
     window.location.replace("/auth/login?next=" + encodeURIComponent(next));
@@ -95,19 +201,33 @@
 
   var nameEl = document.getElementById("console-username");
   if (nameEl) nameEl.textContent = username;
+  if (nameEl && !document.getElementById("rail-avatar")) {
+    var railAvatar = document.createElement("span");
+    railAvatar.className = "rail-avatar";
+    railAvatar.id = "rail-avatar";
+    railAvatar.setAttribute("aria-hidden", "true");
+    nameEl.before(railAvatar);
+  }
 
   var settingsName = document.getElementById("settings-username");
   if (settingsName) settingsName.textContent = username;
 
-  var tabAvatar = document.getElementById("tab-avatar");
-  if (tabAvatar) tabAvatar.textContent = username ? username.charAt(0).toUpperCase() : "?";
+  var settingsAvatar = document.getElementById("settings-avatar");
+  if (settingsAvatar) settingsAvatar.textContent = username ? username.charAt(0).toUpperCase() : "?";
+
+  document.querySelectorAll("#tab-avatar, #rail-avatar").forEach(function (avatar) {
+    avatar.textContent = username ? username.charAt(0).toUpperCase() : "?";
+  });
 
   var adminLink = document.getElementById("console-admin");
-  if (adminLink && localStorage.getItem("is_admin") === "true") {
-    adminLink.hidden = false;
+  function setAdminVisible(isAdmin) {
+    document.querySelectorAll("#console-admin, .js-admin-link").forEach(function (link) {
+      link.hidden = !isAdmin;
+    });
   }
+  if (localStorage.getItem("is_admin") === "true") setAdminVisible(true);
 
-  var navPath = path.indexOf("/console/chat") === 0 ? "/console" : path;
+  var navPath = path;
   document.querySelectorAll(".console-links a[href], .wa-tab[data-nav]").forEach(function (link) {
     var href = link.getAttribute("data-nav") || link.getAttribute("href");
     if (href === navPath || (href === "/console" && (navPath === "/console" || navPath === "/console/index.html"))) {
@@ -133,6 +253,23 @@
   }
 
   var logout = document.getElementById("console-logout");
+  var moreBtn = document.getElementById("inbox-more-btn");
+  var moreMenu = document.getElementById("inbox-more-menu");
+  if (moreBtn && moreMenu) {
+    moreBtn.addEventListener("click", function (event) {
+      event.stopPropagation();
+      var open = moreMenu.hidden;
+      moreMenu.hidden = !open;
+      moreBtn.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+    moreMenu.addEventListener("click", function (event) {
+      event.stopPropagation();
+    });
+    document.addEventListener("click", function () {
+      moreMenu.hidden = true;
+      moreBtn.setAttribute("aria-expanded", "false");
+    });
+  }
   if (logout) logout.addEventListener("click", clearSession);
   var logoutSettings = document.getElementById("console-logout-settings");
   if (logoutSettings) logoutSettings.addEventListener("click", clearSession);
@@ -165,7 +302,8 @@
       if (!badge) {
         badge = document.createElement("span");
         badge.className = "nav-badge";
-        link.appendChild(badge);
+        var ico = link.querySelector(".wa-tab-ico") || link;
+        ico.appendChild(badge);
       }
       badge.textContent = label;
       link.setAttribute("data-unread", label);
@@ -174,6 +312,7 @@
 
   function applyInbox(data) {
     if (!data) return;
+    paintNavBadge("/console", (Number(data.groups) || 0) + (Number(data.directs) || 0));
     paintNavBadge("/console/group", data.groups);
     paintNavBadge("/console/direct", data.directs);
   }
@@ -196,30 +335,37 @@
   loadInbox();
   setInterval(loadInbox, 12000);
 
-  function fillSettingsRole(isAdmin) {
-    var roleEl = document.getElementById("settings-role");
-    if (!roleEl) return;
-    roleEl.textContent = isAdmin ? "Admin" : "Member";
-    if (adminLink) adminLink.hidden = !isAdmin;
+  function fillSettingsEmail(email) {
+    var text = (email || "").trim();
+    var hero = document.getElementById("settings-email");
+    if (hero) hero.textContent = text || "Add email";
+    var input = document.getElementById("settings-email-input");
+    if (input && document.activeElement !== input) input.value = text;
   }
 
-  fetch(API_BASE + "/me", { headers: authHeaders })
-    .then(function (response) {
-      if (response.status === 401) {
-        clearSession();
-        return null;
-      }
-      if (!response.ok) return null;
-      return response.json();
-    })
-    .then(function (data) {
-      if (!data) return;
-      localStorage.setItem("is_admin", data.is_admin ? "true" : "false");
-      fillSettingsRole(Boolean(data.is_admin));
-    })
-    .catch(function () {
-      fillSettingsRole(localStorage.getItem("is_admin") === "true");
-    });
+  function pingMe() {
+    return fetch(API_BASE + "/me", { headers: authHeaders })
+      .then(function (response) {
+        if (response.status === 401) {
+          clearSession();
+          return null;
+        }
+        if (!response.ok) return null;
+        return response.json();
+      })
+      .then(function (data) {
+        if (!data) return;
+        localStorage.setItem("is_admin", data.is_admin ? "true" : "false");
+        setAdminVisible(Boolean(data.is_admin));
+        fillSettingsEmail(data.email);
+      })
+      .catch(function () {
+        setAdminVisible(localStorage.getItem("is_admin") === "true");
+      });
+  }
+
+  pingMe();
+  setInterval(pingMe, 12000);
 
   function avatarHue(name) {
     var hue = 0;
@@ -227,6 +373,32 @@
       hue = (hue * 33 + ch.charCodeAt(0)) % 360;
     });
     return hue;
+  }
+
+  function formatPresence(item) {
+    if (item && item.online) return "online";
+    var raw = item && item.last_seen;
+    if (raw == null || raw === "") return "last seen recently";
+    var date;
+    if (typeof raw === "number" || /^\d+$/.test(String(raw))) {
+      var n = Number(raw);
+      if (n < 1e12) n *= 1000;
+      date = new Date(n);
+    } else {
+      date = new Date(raw);
+    }
+    if (Number.isNaN(date.getTime())) return "last seen recently";
+    var now = new Date();
+    var time = date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    var startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    var startThat = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+    var dayDiff = Math.round((startToday - startThat) / 86400000);
+    if (dayDiff === 0) return "last seen today at " + time;
+    if (dayDiff === 1) return "last seen yesterday at " + time;
+    if (dayDiff < 7) {
+      return "last seen " + date.toLocaleDateString([], { weekday: "long" }) + " at " + time;
+    }
+    return "last seen " + date.toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" });
   }
 
   function inboxTime(iso) {
@@ -241,6 +413,7 @@
   }
 
   function threadSnippet(item) {
+    if (item.show_presence) return formatPresence(item);
     var text = item.last_message || "";
     if (!text) return item.is_direct ? "Private chat" : "No messages yet";
     if (item.last_sender && !item.is_direct) {
@@ -269,7 +442,11 @@
     var clickable = Boolean(item.id) && !extra;
     var row = document.createElement(clickable ? "a" : "div");
     row.className = "wa-thread" + (unread ? " has-unread" : "");
-    if (clickable) row.href = "/console/chat?group=" + encodeURIComponent(item.id);
+    if (clickable) {
+      row.href = "/console/chat?group=" + encodeURIComponent(item.id);
+      var activeGroup = new URLSearchParams(window.location.search).get("group");
+      if (activeGroup && String(item.id) === activeGroup) row.classList.add("is-active");
+    }
     row.appendChild(makeAvatar(name, Boolean(item.online)));
 
     var body = document.createElement("div");
@@ -288,7 +465,7 @@
     var bottom = document.createElement("div");
     bottom.className = "wa-thread-bottom";
     var snippet = document.createElement("span");
-    snippet.className = "wa-thread-snippet";
+    snippet.className = "wa-thread-snippet" + (item.show_presence && item.online ? " is-online" : "");
     snippet.textContent = threadSnippet(item);
     bottom.appendChild(snippet);
     if (unread) {
@@ -313,6 +490,7 @@
     SKELETON_TIMEOUT_MS: 8000,
     threadRow: threadRow,
     makeAvatar: makeAvatar,
+    formatPresence: formatPresence,
     empty: function (text) {
       var el = document.createElement("p");
       el.className = "wa-empty";
@@ -384,15 +562,133 @@
     startIncomingCalls();
   } else {
     var callScript = document.createElement("script");
-    callScript.src = "/scripts/call.js?v=glare";
+    callScript.src = "/scripts/call.js?v=layout";
     callScript.onload = startIncomingCalls;
     document.body.appendChild(callScript);
   }
+
+  var emailSave = document.getElementById("settings-email-save");
+  var emailInput = document.getElementById("settings-email-input");
+  if (emailSave && emailInput) {
+    emailSave.addEventListener("click", function () {
+      var status = document.getElementById("settings-email-status");
+      emailSave.disabled = true;
+      var payload = JSON.stringify({ email: emailInput.value.trim() });
+      function submitEmail(method) {
+        return fetch(API_BASE + "/me", {
+          method: method,
+          credentials: "include",
+          headers: Object.assign({ "Content-Type": "application/json" }, authHeaders),
+          body: payload,
+        }).then(function (response) {
+          return response.text().then(function (text) {
+            var data = {};
+            if (text) {
+              try {
+                data = JSON.parse(text);
+              } catch (err) {
+                data = { detail: text };
+              }
+            }
+            return { ok: response.ok, status: response.status, data: data };
+          });
+        });
+      }
+      function emailSaveError(result) {
+        var detail = result.data && result.data.detail;
+        if (Array.isArray(detail)) detail = detail.map(function (item) { return item.msg || item; }).join(" ");
+        if (result.status === 405 || /method not allowed/i.test(String(detail || ""))) {
+          return "Email updates are not implemented yet.";
+        }
+        return detail || "Could not save email";
+      }
+      submitEmail("PATCH")
+        .then(function (response) {
+          if (response.status === 405) return submitEmail("POST");
+          return response;
+        })
+        .then(function (result) {
+          if (!result.ok) {
+            throw new Error(emailSaveError(result));
+          }
+          fillSettingsEmail(result.data.email);
+          if (status) status.textContent = "Saved";
+        })
+        .catch(function (err) {
+          var message = err.message || "Could not save email";
+          if (/method not allowed/i.test(message)) message = "Email updates are not implemented yet.";
+          if (status) status.textContent = message;
+        })
+        .then(function () {
+          emailSave.disabled = false;
+        });
+    });
+  }
+
+  var langList = document.getElementById("language-list");
+  if (langList) {
+    var checkSvg =
+      '<svg class="settings-check" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>';
+    APP_LANGS.forEach(function (item) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "settings-item settings-toggle";
+      btn.setAttribute("data-lang", item.id);
+      btn.innerHTML =
+        '<span class="settings-copy"><b></b><small></small></span>' + checkSvg;
+      btn.querySelector("b").textContent = item.name;
+      btn.querySelector("small").textContent = item.hint;
+      langList.appendChild(btn);
+    });
+    function paintLang() {
+      var current = selectedLangId();
+      langList.querySelectorAll("[data-lang]").forEach(function (btn) {
+        var on = btn.getAttribute("data-lang") === current;
+        btn.classList.toggle("is-on", on);
+        btn.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+    }
+    paintLang();
+    langList.addEventListener("click", function (event) {
+      var btn = event.target.closest("[data-lang]");
+      if (!btn) return;
+      window.chatLang.set(btn.getAttribute("data-lang"));
+      paintLang();
+    });
+    var langSearch = document.getElementById("language-search");
+    if (langSearch) {
+      langSearch.addEventListener("input", function () {
+        var q = langSearch.value.trim().toLowerCase();
+        langList.querySelectorAll("[data-lang]").forEach(function (btn) {
+          var hay = (btn.textContent || "").toLowerCase();
+          btn.hidden = Boolean(q) && hay.indexOf(q) === -1;
+        });
+      });
+    }
+  }
+
+  document.querySelectorAll("[data-notify]").forEach(function (btn) {
+    var key = btn.getAttribute("data-notify");
+    function paint(on) {
+      btn.classList.toggle("is-on", on);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+    }
+    paint(window.chatNotify.enabled(key));
+    btn.addEventListener("click", function (event) {
+      event.preventDefault();
+      var next = btn.getAttribute("aria-pressed") !== "true";
+      var patch = {};
+      patch[key] = next;
+      window.chatNotify.set(patch);
+      paint(next);
+    });
+  });
 
   var inboxList = document.getElementById("inbox-list");
   if (!inboxList) return;
 
   var inboxItems = [];
+  var inboxFilter = "all";
   var inboxCount = document.getElementById("inbox-count");
   var searchWrap = document.getElementById("inbox-search-wrap");
   var searchInput = document.getElementById("inbox-search");
@@ -401,6 +697,8 @@
   function paintInbox(filter) {
     var query = String(filter || "").trim().toLowerCase();
     var items = inboxItems.filter(function (item) {
+      if (inboxFilter === "unread" && !(Number(item.unread_count) > 0)) return false;
+      if (inboxFilter === "groups" && item.is_direct) return false;
       if (!query) return true;
       var hay = [item.name, item.peer, item.last_message, item.last_sender]
         .filter(Boolean)
@@ -425,6 +723,15 @@
       if (searchWrap.classList.contains("open") && searchInput) searchInput.focus();
     });
   }
+  document.querySelectorAll(".wa-chip[data-filter]").forEach(function (chip) {
+    chip.addEventListener("click", function () {
+      inboxFilter = chip.getAttribute("data-filter") || "all";
+      document.querySelectorAll(".wa-chip[data-filter]").forEach(function (el) {
+        el.setAttribute("aria-pressed", el === chip ? "true" : "false");
+      });
+      paintInbox(searchInput && searchInput.value);
+    });
+  });
   if (searchInput) {
     searchInput.addEventListener("input", function () {
       paintInbox(searchInput.value);

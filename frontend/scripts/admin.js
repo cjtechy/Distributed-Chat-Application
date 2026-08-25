@@ -20,6 +20,33 @@
     showError("");
   }
 
+  function setHtml(id, html) {
+    var node = document.getElementById(id);
+    if (node) node.innerHTML = html;
+  }
+
+  function panelState(text, tone) {
+    return '<p class="admin-panel-state ' + (tone || "") + '">' + escapeHtml(text) + "</p>";
+  }
+
+  function setDashboardLoading() {
+    setHtml(
+      "stats",
+      '<div class="stat-card is-loading"><b>...</b><span>Members</span></div>' +
+        '<div class="stat-card is-loading"><b>...</b><span>Online</span></div>' +
+        '<div class="stat-card is-loading"><b>...</b><span>Messages</span></div>' +
+        '<div class="stat-card is-loading"><b>...</b><span>Admins</span></div>'
+    );
+    var health = document.getElementById("health");
+    if (health) {
+      health.className = "health";
+      health.textContent = "Checking services...";
+    }
+    setHtml("online", '<li class="empty">Checking who is online...</li>');
+    setHtml("members", panelState("Loading members..."));
+    setHtml("messages", panelState("Loading recent messages..."));
+  }
+
   function setMode(mode) {
     document.body.classList.toggle("admin-auth", mode === "login");
     document.body.classList.toggle("admin-dash", mode === "dash");
@@ -35,6 +62,11 @@
   function showDashboard() {
     setMode("dash");
     clearError();
+    var nameEl = document.getElementById("console-username");
+    var storedName = localStorage.getItem("username") || "";
+    if (nameEl && storedName) nameEl.textContent = storedName;
+    var railAvatar = document.getElementById("rail-avatar");
+    if (railAvatar && storedName) railAvatar.textContent = storedName.charAt(0).toUpperCase();
   }
 
   function headers() {
@@ -81,7 +113,8 @@
 
   async function loadOverview() {
     var data = await api("/admin/overview");
-    document.getElementById("stats").innerHTML =
+    setHtml(
+      "stats",
       '<div class="stat-card"><b>' +
       data.members +
       "</b><span>Members</span></div>" +
@@ -95,35 +128,43 @@
       "</b><span>Messages</span></div>" +
       '<div class="stat-card"><b>' +
       data.admins +
-      "</b><span>Admins</span></div>";
+      "</b><span>Admins</span></div>"
+    );
 
     var pg = data.postgres && data.postgres.connected;
     var rd = data.redis && data.redis.connected;
     var health = document.getElementById("health");
-    health.className = "health " + (pg && rd ? "ok" : "bad");
-    health.textContent =
-      "Postgres " +
-      (pg ? "up" : "down") +
-      " · Redis " +
-      (rd ? "up" : "down") +
-      " · write queue " +
-      data.message_writer_queue;
+    if (health) {
+      health.className = "health " + (pg && rd ? "ok" : "bad");
+      health.textContent =
+        "Postgres " +
+        (pg ? "up" : "down") +
+        " · Redis " +
+        (rd ? "up" : "down") +
+        " · write queue " +
+        data.message_writer_queue;
+    }
 
-    var online = data.online.users || [];
-    document.getElementById("online").innerHTML = online.length
-      ? online.map(function (name) {
-          return "<li>" + escapeHtml(name) + "</li>";
-        }).join("")
-      : '<li class="empty">Nobody is in a room right now</li>';
+    var onlineInfo = data.online || {};
+    var online = onlineInfo.users || [];
+    setHtml(
+      "online",
+      online.length
+        ? online.map(function (name) {
+            return "<li>" + escapeHtml(name) + "</li>";
+          }).join("")
+        : '<li class="empty">Nobody is in a room right now</li>'
+    );
   }
 
   async function loadMembers() {
     var members = await api("/admin/members");
     if (!members.length) {
-      document.getElementById("members").innerHTML = '<p class="empty">No members yet.</p>';
+      setHtml("members", '<p class="empty">No members yet.</p>');
       return;
     }
-    document.getElementById("members").innerHTML =
+    setHtml(
+      "members",
       '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Name</th><th>Joined</th><th>Role</th><th></th></tr></thead><tbody>' +
       members
         .map(function (m) {
@@ -148,17 +189,19 @@
           );
         })
         .join("") +
-      "</tbody></table></div>";
+      "</tbody></table></div>"
+    );
   }
 
   async function loadMessages() {
     var messages = await api("/admin/messages");
     if (!messages.length) {
-      document.getElementById("messages").innerHTML = '<p class="empty">No messages yet.</p>';
+      setHtml("messages", '<p class="empty">No messages yet.</p>');
       return;
     }
     var newest = messages.slice().reverse();
-    document.getElementById("messages").innerHTML =
+    setHtml(
+      "messages",
       '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>From</th><th>Message</th><th>When</th><th></th></tr></thead><tbody>' +
       newest
         .map(function (m) {
@@ -175,14 +218,37 @@
           );
         })
         .join("") +
-      "</tbody></table></div>";
+      "</tbody></table></div>"
+    );
   }
 
   async function loadDashboard() {
-    await loadOverview();
-    await loadMembers();
-    await loadMessages();
     showDashboard();
+    setDashboardLoading();
+    var authError = null;
+    await Promise.all([
+      loadOverview().catch(function (err) {
+        if (err.auth) authError = err;
+        else {
+          setHtml("stats", panelState(err.message || "Could not load overview.", "bad"));
+          var health = document.getElementById("health");
+          if (health) {
+            health.className = "health bad";
+            health.textContent = err.message || "Could not load health.";
+          }
+          setHtml("online", '<li class="empty">Online status unavailable</li>');
+        }
+      }),
+      loadMembers().catch(function (err) {
+        if (err.auth) authError = err;
+        else setHtml("members", panelState(err.message || "Could not load members.", "bad"));
+      }),
+      loadMessages().catch(function (err) {
+        if (err.auth) authError = err;
+        else setHtml("messages", panelState(err.message || "Could not load messages.", "bad"));
+      }),
+    ]);
+    if (authError) showLogin(authError.message);
   }
 
   document.getElementById("members").addEventListener("click", async function (event) {
@@ -268,6 +334,8 @@
         localStorage.setItem("is_admin", "true");
         var nameEl = document.getElementById("console-username");
         if (nameEl) nameEl.textContent = data.username;
+        var railAvatar = document.getElementById("rail-avatar");
+        if (railAvatar) railAvatar.textContent = data.username.charAt(0).toUpperCase();
         await loadDashboard();
       } catch (err) {
         showError(err.message || "Sign in failed.");
@@ -293,15 +361,7 @@
       showLogin();
       return;
     }
-    try {
-      await loadDashboard();
-    } catch (err) {
-      if (err.auth) showLogin(err.message);
-      else {
-        showLogin();
-        showError(err.message);
-      }
-    }
+    await loadDashboard();
   }
 
   start();

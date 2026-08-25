@@ -4,27 +4,46 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Chat — Distributed Chat</title>
-  <link rel="stylesheet" href="/assets/console.css?v=phone">
-  <link rel="stylesheet" href="/assets/chat.css?v=phone">
+  <link rel="stylesheet" href="/assets/console.css?v=layout">
+  <link rel="stylesheet" href="/assets/chat.css?v=layout">
 </head>
 <body class="console-chat">
   <div class="console-app">
     <nav class="console-nav" id="console-nav">
       <a class="console-brand" href="/console">
-        <span class="console-brand-mark" aria-hidden="true">💬</span>
-        Chat
+        <span class="console-brand-mark" aria-hidden="true">C</span>
+        <span>Chat</span>
       </a>
       <div class="console-links">
-        <a href="/console" data-nav="/console">Chats</a>
-        <a href="/console/group" data-nav="/console/group">Groups</a>
-        <a href="/console/direct" data-nav="/console/direct">Direct</a>
-        <a href="/console/settings" data-nav="/console/settings">Settings</a>
+        <a href="/console" data-nav="/console" aria-label="Chats">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <span>Chats</span>
+        </a>
+        <a href="/console/group" data-nav="/console/group" aria-label="Groups">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.85"/><path d="M15.5 3.2a4 4 0 0 1 0 7.6"/></svg>
+          <span>Groups</span>
+        </a>
+        <a href="/console/direct" data-nav="/console/direct" aria-label="Direct messages">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span>Direct</span>
+        </a>
+        <a href="/console/settings" data-nav="/console/settings" aria-label="Settings">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.6.9 1 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+          <span>Settings</span>
+        </a>
       </div>
       <div class="console-user">
+        <span class="rail-avatar" id="rail-avatar" aria-hidden="true">?</span>
         <span class="console-user-name" id="console-username">…</span>
         <div class="console-user-actions">
-          <a class="btn-ghost" id="console-admin" href="/admin" hidden>Admin</a>
-          <button class="btn-ghost" id="console-logout" type="button">Log out</button>
+          <a class="btn-ghost" id="console-admin" href="/admin" aria-label="Admin" hidden>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 4v5c0 5-3.4 8-8 9-4.6-1-8-4-8-9V7l8-4z"/><path d="M9 12l2 2 4-5"/></svg>
+            <span>Admin</span>
+          </a>
+          <button class="btn-ghost" id="console-logout" type="button" aria-label="Log out">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+            <span>Log out</span>
+          </button>
         </div>
       </div>
     </nav>
@@ -32,18 +51,47 @@
       <div class="app">
         <section id="chat-panel" class="chat-panel active">
           <aside class="chat-sidebar">
-            <div class="sidebar-header">
+            <div class="chat-inbox-head">
+              <h1>Chats</h1>
+              <div class="chat-inbox-actions">
+                <a class="wa-icon-btn" href="/console/direct" aria-label="New chat">
+                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                </a>
+                <div class="wa-more">
+                  <button class="wa-icon-btn" id="inbox-more-btn" type="button" aria-label="More" aria-expanded="false" aria-haspopup="true">
+                    <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
+                  </button>
+                  <div class="wa-more-menu" id="inbox-more-menu" hidden>
+                    <a href="/console/group">New group</a>
+                    <a href="/console/direct">New chat</a>
+                    <a href="/console/settings">Settings</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <label class="wa-search open" id="inbox-search-wrap">
+              <span class="wa-search-mark" aria-hidden="true">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+              </span>
+              <input id="inbox-search" type="search" placeholder="Search or start a new chat" autocomplete="off">
+            </label>
+            <div class="wa-chips" role="tablist" aria-label="Filter chats">
+              <button class="wa-chip" type="button" data-filter="all" aria-pressed="true">All</button>
+              <button class="wa-chip" type="button" data-filter="unread" aria-pressed="false">Unread</button>
+              <button class="wa-chip" type="button" data-filter="groups" aria-pressed="false">Groups</button>
+            </div>
+            <div id="inbox-list" class="wa-thread-list" aria-busy="true" aria-label="Loading chats">
+              <div class="sk-thread" aria-hidden="true"><span class="sk-bone sk-avatar"></span><div class="sk-lines"><span class="sk-bone sk-name"></span><span class="sk-bone sk-snip"></span></div><span class="sk-bone sk-time"></span></div>
+              <div class="sk-thread" aria-hidden="true"><span class="sk-bone sk-avatar"></span><div class="sk-lines"><span class="sk-bone sk-name"></span><span class="sk-bone sk-snip"></span></div><span class="sk-bone sk-time"></span></div>
+              <div class="sk-thread" aria-hidden="true"><span class="sk-bone sk-avatar"></span><div class="sk-lines"><span class="sk-bone sk-name"></span><span class="sk-bone sk-snip"></span></div><span class="sk-bone sk-time"></span></div>
+              <div class="sk-thread" aria-hidden="true"><span class="sk-bone sk-avatar"></span><div class="sk-lines"><span class="sk-bone sk-name"></span><span class="sk-bone sk-snip"></span></div><span class="sk-bone sk-time"></span></div>
+              <div class="sk-thread" aria-hidden="true"><span class="sk-bone sk-avatar"></span><div class="sk-lines"><span class="sk-bone sk-name"></span><span class="sk-bone sk-snip"></span></div><span class="sk-bone sk-time"></span></div>
+            </div>
+            <div class="chat-room-meta" hidden>
               <span class="tag" id="group-tag">Group</span>
               <h2 id="group-name">…</h2>
               <p id="group-blurb">Loading this room…</p>
-            </div>
-            <div class="sidebar-section">
-              <h3>Members online</h3>
-              <ul id="online-list" class="online-list">
-                <li class="sk-online" aria-hidden="true"><span class="sk-bone sk-dot"></span><span class="sk-bone sk-name"></span></li>
-                <li class="sk-online" aria-hidden="true"><span class="sk-bone sk-dot"></span><span class="sk-bone sk-name"></span></li>
-                <li class="sk-online" aria-hidden="true"><span class="sk-bone sk-dot"></span><span class="sk-bone sk-name"></span></li>
-              </ul>
+              <ul id="online-list" class="online-list"></ul>
             </div>
           </aside>
 
@@ -129,14 +177,34 @@
 
   <div id="call-overlay" class="call-overlay" hidden>
     <div id="call-ring" class="call-ring" hidden>
-      <div class="call-ring-glow" aria-hidden="true"></div>
-      <div id="call-ring-avatar" class="call-ring-avatar">?</div>
-      <h2 id="call-ring-name">Calling…</h2>
-      <p id="call-ring-status">Ringing</p>
-      <div class="call-ring-actions">
-        <button id="call-reject" class="call-btn call-btn-reject" type="button">Decline</button>
-        <button id="call-cancel" class="call-btn call-btn-reject" type="button" hidden>Cancel</button>
-        <button id="call-accept" class="call-btn call-btn-accept" type="button">Accept</button>
+      <div class="call-ring-shell">
+        <div class="call-ring-glow" aria-hidden="true"></div>
+        <div class="call-ring-avatar-wrap">
+          <div id="call-ring-avatar" class="call-ring-avatar">?</div>
+        </div>
+        <span id="call-ring-label" class="call-ring-label">Call</span>
+        <h2 id="call-ring-name">Calling...</h2>
+        <p id="call-ring-status">Ringing</p>
+        <div class="call-ring-actions">
+          <button id="call-reject" class="call-btn call-btn-reject" type="button" aria-label="Decline call">
+            <span class="call-btn-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.89.33 1.76.62 2.59a2 2 0 0 1-.45 2.11L8 9.72a16 16 0 0 0 6.28 6.28l1.3-1.28a2 2 0 0 1 2.11-.45c.83.29 1.7.5 2.59.62A2 2 0 0 1 22 16.92Z"/><path d="m15 9 6-6"/><path d="m21 9-6-6"/></svg>
+            </span>
+            <span>Decline</span>
+          </button>
+          <button id="call-cancel" class="call-btn call-btn-reject" type="button" aria-label="Cancel call" hidden>
+            <span class="call-btn-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.89.33 1.76.62 2.59a2 2 0 0 1-.45 2.11L8 9.72a16 16 0 0 0 6.28 6.28l1.3-1.28a2 2 0 0 1 2.11-.45c.83.29 1.7.5 2.59.62A2 2 0 0 1 22 16.92Z"/><path d="m15 9 6-6"/><path d="m21 9-6-6"/></svg>
+            </span>
+            <span>Cancel</span>
+          </button>
+          <button id="call-accept" class="call-btn call-btn-accept" type="button" aria-label="Accept call">
+            <span class="call-btn-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.89.33 1.76.62 2.59a2 2 0 0 1-.45 2.11L8 9.72a16 16 0 0 0 6.28 6.28l1.3-1.28a2 2 0 0 1 2.11-.45c.83.29 1.7.5 2.59.62A2 2 0 0 1 22 16.92Z"/></svg>
+            </span>
+            <span>Accept</span>
+          </button>
+        </div>
       </div>
     </div>
     <div id="call-active" class="call-active" hidden>
@@ -147,17 +215,32 @@
         <span id="call-status">Connecting…</span>
       </div>
       <div class="call-controls">
-        <button id="call-mute" class="call-ctrl" type="button" aria-label="Mute">Mic</button>
-        <button id="call-camera" class="call-ctrl" type="button" aria-label="Camera">Cam</button>
-        <button id="call-hangup" class="call-ctrl call-ctrl-end" type="button" aria-label="End call">End</button>
+        <button id="call-mute" class="call-ctrl" type="button" aria-label="Mute">
+          <span class="call-ctrl-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></svg>
+          </span>
+          <span>Mic</span>
+        </button>
+        <button id="call-camera" class="call-ctrl" type="button" aria-label="Camera">
+          <span class="call-ctrl-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="m16 13 5 3V8l-5 3Z"/><rect x="3" y="6" width="13" height="12" rx="2"/></svg>
+          </span>
+          <span>Cam</span>
+        </button>
+        <button id="call-hangup" class="call-ctrl call-ctrl-end" type="button" aria-label="End call">
+          <span class="call-ctrl-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.89.33 1.76.62 2.59a2 2 0 0 1-.45 2.11L8 9.72a16 16 0 0 0 6.28 6.28l1.3-1.28a2 2 0 0 1 2.11-.45c.83.29 1.7.5 2.59.62A2 2 0 0 1 22 16.92Z"/><path d="m15 9 6-6"/><path d="m21 9-6-6"/></svg>
+          </span>
+          <span>End</span>
+        </button>
       </div>
     </div>
   </div>
 
   <script src="/config.js"></script>
   <script src="/scripts/http.js"></script>
-  <script src="/scripts/call.js?v=glare"></script>
-  <script src="/scripts/console.js?v=phone"></script>
-  <script src="/scripts/chat.js?v=phone"></script>
+  <script src="/scripts/call.js?v=layout"></script>
+  <script src="/scripts/console.js?v=layout"></script>
+  <script src="/scripts/chat.js?v=layout"></script>
 </body>
 </html>

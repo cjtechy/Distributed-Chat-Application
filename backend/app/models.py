@@ -33,6 +33,10 @@ class AdminRoleRequest(BaseModel):
     is_admin: bool
 
 
+class EmailUpdateRequest(BaseModel):
+    email: str = Field(default="", max_length=120)
+
+
 class UsernameCheckResponse(BaseModel):
     username: str
     available: bool

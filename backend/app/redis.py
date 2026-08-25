@@ -4,6 +4,7 @@ import os
 import secrets
 import time
 from collections import OrderedDict
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Awaitable, Callable
 
@@ -21,6 +22,9 @@ REDIS_DB = int(os.getenv("REDIS_DB", "0"))
 REDIS_CHAT_CHANNEL = os.getenv("REDIS_CHAT_CHANNEL", "chat:messages")
 REDIS_INBOUND_CHANNEL = os.getenv("REDIS_INBOUND_CHANNEL", "chat:inbound")
 REDIS_ONLINE_KEY = os.getenv("REDIS_ONLINE_KEY", "chat:online_users")
+REDIS_PRESENCE_KEY = os.getenv("REDIS_PRESENCE_KEY", "chat:presence")
+REDIS_LAST_SEEN_KEY = os.getenv("REDIS_LAST_SEEN_KEY", "chat:last_seen")
+REDIS_APP_ONLINE_KEY = os.getenv("REDIS_APP_ONLINE_KEY", "chat:app_online")
 REDIS_USERNAME_KEY = os.getenv("REDIS_USERNAME_KEY", "chat:usernames")
 REDIS_URL = (
     f"redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
@@ -147,7 +151,7 @@ def call_ring_key(username: str) -> str:
     return f"chat:call:ring:{username}"
 
 
-async def set_call_ring(username: str, event: dict, ttl: int = 45) -> None:
+async def set_call_ring(username: str, event: dict, ttl: int = 40) -> None:
     await redis_client.setex(call_ring_key(username), ttl, json.dumps(event))
 
 
@@ -166,12 +170,154 @@ async def clear_call_ring(username: str) -> None:
     await redis_client.delete(call_ring_key(username))
 
 
+def call_busy_key(username: str) -> str:
+    return f"chat:call:busy:{username}"
+
+
+async def set_call_busy(username: str, call_id: str, ttl: int = 50) -> None:
+    await redis_client.setex(call_busy_key(username), ttl, call_id)
+
+
+async def get_call_busy(username: str) -> str | None:
+    return await redis_client.get(call_busy_key(username))
+
+
+async def clear_call_busy(username: str) -> None:
+    await redis_client.delete(call_busy_key(username))
+
+
+async def user_is_busy(username: str, except_call_id: str | None = None) -> bool:
+    busy = await get_call_busy(username)
+    if busy and busy != except_call_id:
+        return True
+    ring = await get_call_ring(username)
+    ring_id = ring.get("call_id") if ring else None
+    if ring_id and ring_id != except_call_id:
+        return True
+    return False
+
+
+async def clear_call_busy_if(username: str, call_id: str) -> None:
+    current = await get_call_busy(username)
+    if current == call_id:
+        await clear_call_busy(username)
+
+
 async def group_member_names(group_id: int) -> set[str]:
     try:
         members = await redis_client.smembers(group_members_key(group_id))
     except Exception:
         return set()
     return {name for name in members if name}
+
+
+APP_ONLINE_TTL_S = 40
+
+
+async def heartbeat_app(username: str) -> bool:
+    """Record that this user is in the app. Returns True on offline -> online."""
+    now = int(time.time())
+    try:
+        prev = await redis_client.hget(REDIS_APP_ONLINE_KEY, username)
+        await redis_client.hset(REDIS_APP_ONLINE_KEY, username, now)
+    except Exception:
+        return False
+    was_online = False
+    if prev:
+        try:
+            was_online = (now - int(prev)) < APP_ONLINE_TTL_S
+        except (TypeError, ValueError):
+            was_online = False
+    return not was_online
+
+
+async def mark_app_offline(username: str) -> None:
+    try:
+        await redis_client.hdel(REDIS_APP_ONLINE_KEY, username)
+    except Exception:
+        pass
+    await touch_last_seen(username)
+    try:
+        await publish_message({
+            "type": "presence",
+            "username": username,
+            "online": False,
+            "last_seen": int(time.time()),
+        })
+    except Exception:
+        return
+
+
+async def touch_last_seen(username: str) -> None:
+    try:
+        await redis_client.hset(REDIS_LAST_SEEN_KEY, username, int(time.time()))
+    except Exception:
+        return
+
+
+async def presence_for(usernames: list[str]) -> dict[str, dict]:
+    names = [name for name in usernames if name]
+    if not names:
+        return {}
+    try:
+        pipe = redis_client.pipeline()
+        pipe.hmget(REDIS_PRESENCE_KEY, *names)
+        pipe.hmget(REDIS_APP_ONLINE_KEY, *names)
+        pipe.hmget(REDIS_LAST_SEEN_KEY, *names)
+        counts, beats, seen = await pipe.execute()
+    except Exception:
+        return {name: {"online": False, "last_seen": None} for name in names}
+
+    now = int(time.time())
+    out: dict[str, dict] = {}
+    for i, name in enumerate(names):
+        raw_count = counts[i] if counts else None
+        try:
+            ws_online = int(raw_count) > 0
+        except (TypeError, ValueError):
+            ws_online = False
+        raw_beat = beats[i] if beats else None
+        app_online = False
+        beat_ts = None
+        if raw_beat:
+            try:
+                beat_ts = int(raw_beat)
+                app_online = (now - beat_ts) < APP_ONLINE_TTL_S
+            except (TypeError, ValueError):
+                app_online = False
+        online = ws_online or app_online
+        last_seen = None
+        raw_seen = seen[i] if seen else None
+        if not online and beat_ts and not app_online:
+            last_seen = datetime.fromtimestamp(beat_ts, tz=timezone.utc).isoformat().replace("+00:00", "Z")
+        elif raw_seen:
+            try:
+                last_seen = datetime.fromtimestamp(int(raw_seen), tz=timezone.utc).isoformat().replace("+00:00", "Z")
+            except (TypeError, ValueError, OSError):
+                last_seen = None
+        out[name] = {"online": online, "last_seen": last_seen}
+    return out
+
+
+async def apply_presence(items: list[dict], key: str = "username") -> list[dict]:
+    names = [item.get(key) for item in items]
+    lookup = await presence_for(names)
+    for item in items:
+        extra = lookup.get(item.get(key) or "", {})
+        item["online"] = bool(extra.get("online"))
+        item["last_seen"] = extra.get("last_seen")
+    return items
+
+
+async def apply_peer_presence(group: dict | None) -> dict | None:
+    if not group:
+        return group
+    peer = group.get("peer")
+    if group.get("is_direct") and peer:
+        extra = (await presence_for([peer])).get(peer, {})
+        group["online"] = bool(extra.get("online"))
+        group["last_seen"] = extra.get("last_seen")
+    return group
 
 
 async def mark_user_online(username: str, group_id: int = 1) -> tuple[list[str], bool]:

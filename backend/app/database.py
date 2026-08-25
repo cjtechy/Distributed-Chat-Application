@@ -86,6 +86,12 @@ async def init_db() -> None:
         )
         await conn.execute(
             """
+            ALTER TABLE users
+            ADD COLUMN IF NOT EXISTS email TEXT
+            """
+        )
+        await conn.execute(
+            """
             ALTER TABLE messages
             ADD COLUMN IF NOT EXISTS viewed_at TIMESTAMPTZ
             """
@@ -195,7 +201,7 @@ async def get_user_by_username(username: str) -> dict | None:
     async with pool.connection() as conn:
         result = await conn.execute(
             """
-            SELECT id, username, password_hash, created_at, is_admin
+            SELECT id, username, password_hash, created_at, is_admin, email
             FROM users
             WHERE username = %s
             """,
@@ -212,6 +218,7 @@ async def get_user_by_username(username: str) -> dict | None:
         "password_hash": row[2],
         "created_at": row[3].isoformat(),
         "is_admin": bool(row[4]),
+        "email": row[5] if len(row) > 5 else None,
     }
 
 
@@ -230,6 +237,38 @@ async def count_admins() -> int:
         result = await conn.execute("SELECT COUNT(*) FROM users WHERE is_admin = TRUE")
         row = await result.fetchone()
     return int(row[0]) if row else 0
+
+
+async def update_user_email(username: str, email: str | None) -> dict | None:
+    clean = (email or "").strip() or None
+    if clean:
+        if "@" not in clean or "." not in clean.split("@")[-1] or len(clean) > 120:
+            raise ValueError("Enter a valid email address")
+    assert pool is not None
+    async with pool.connection() as conn:
+        if clean:
+            taken = await conn.execute(
+                """
+                SELECT username FROM users
+                WHERE lower(email) = lower(%s) AND username <> %s
+                LIMIT 1
+                """,
+                (clean, username),
+            )
+            if await taken.fetchone():
+                raise ValueError("That email is already in use")
+        result = await conn.execute(
+            """
+            UPDATE users SET email = %s WHERE username = %s
+            RETURNING username, email, is_admin
+            """,
+            (clean, username),
+        )
+        row = await result.fetchone()
+        await conn.commit()
+    if row is None:
+        return None
+    return {"username": row[0], "email": row[1], "is_admin": bool(row[2])}
 
 
 async def community_stats() -> dict:
@@ -538,6 +577,28 @@ async def mark_messages_delivered(recipient: str, ids: list) -> list[int]:
         await conn.commit()
 
     return [row[0] for row in rows]
+
+
+async def mark_delivered_for_recipient(username: str) -> list[tuple[int, int]]:
+    """Mark incoming messages delivered because this user is in the app."""
+    assert pool is not None
+    async with pool.connection() as conn:
+        result = await conn.execute(
+            """
+            UPDATE messages msg
+            SET delivered_at = NOW()
+            FROM group_members gm
+            WHERE gm.username = %s
+              AND COALESCE(msg.group_id, 1) = gm.group_id
+              AND msg.username <> %s
+              AND msg.delivered_at IS NULL
+            RETURNING msg.id, COALESCE(msg.group_id, 1)
+            """,
+            (username, username),
+        )
+        rows = await result.fetchall()
+        await conn.commit()
+    return [(int(row[0]), int(row[1])) for row in rows]
 
 
 def _iso(value):

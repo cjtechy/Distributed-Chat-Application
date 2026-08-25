@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Direct — Distributed Chat</title>
-  <link rel="stylesheet" href="/assets/console.css?v=phone">
+  <link rel="stylesheet" href="/assets/console.css?v=layout">
 </head>
 <body>
   <div class="console-app">
@@ -28,55 +28,58 @@
       </div>
     </nav>
     <main class="console-main">
-      <div class="console-page">
+      <div class="wa-inbox">
         <header class="wa-page-head">
-          <div>
-            <span class="wa-logo">Chat</span>
-            <h1>Direct</h1>
+          <span class="wa-logo">Chat</span>
+          <div class="wa-head-actions">
+            <a class="wa-icon-btn" href="/console/settings" aria-label="More">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
+            </a>
           </div>
         </header>
-        <p class="lead">Start a private conversation with another member.</p>
-
-        <form id="direct-form" class="group-form">
+        <label class="wa-search open" id="direct-search-wrap">
+          <span class="wa-search-mark" aria-hidden="true">💬</span>
+          <input id="direct-search" type="search" placeholder="Search people or chats" autocomplete="off">
+        </label>
+        <div class="wa-chips" role="tablist" aria-label="Filter direct">
+          <button class="wa-chip" type="button" data-direct-filter="chats" aria-pressed="true">Chats</button>
+          <button class="wa-chip" type="button" data-direct-filter="people" aria-pressed="false">People</button>
+        </div>
+        <form id="direct-form" class="group-form" hidden>
           <input id="direct-username" type="text" maxlength="32" minlength="1" placeholder="Username" required autocomplete="off">
           <button class="btn-primary" type="submit">Message</button>
         </form>
         <p id="direct-error" class="form-error" hidden></p>
-
-        <h2 class="section-label">Conversations</h2>
-        <div id="direct-chats" class="wa-thread-list" aria-busy="true">
-          <div class="sk-thread" aria-hidden="true"><span class="sk-bone sk-avatar"></span><div class="sk-lines"><span class="sk-bone sk-name"></span><span class="sk-bone sk-snip"></span></div><span class="sk-bone sk-time"></span></div>
-          <div class="sk-thread" aria-hidden="true"><span class="sk-bone sk-avatar"></span><div class="sk-lines"><span class="sk-bone sk-name"></span><span class="sk-bone sk-snip"></span></div><span class="sk-bone sk-time"></span></div>
-          <div class="sk-thread" aria-hidden="true"><span class="sk-bone sk-avatar"></span><div class="sk-lines"><span class="sk-bone sk-name"></span><span class="sk-bone sk-snip"></span></div><span class="sk-bone sk-time"></span></div>
-        </div>
-
-        <h2 class="section-label">Members</h2>
-        <div id="direct-people" class="wa-thread-list" aria-busy="true">
-          <div class="sk-thread" aria-hidden="true"><span class="sk-bone sk-avatar"></span><div class="sk-lines"><span class="sk-bone sk-name"></span><span class="sk-bone sk-snip"></span></div><span class="sk-bone sk-time"></span></div>
-          <div class="sk-thread" aria-hidden="true"><span class="sk-bone sk-avatar"></span><div class="sk-lines"><span class="sk-bone sk-name"></span><span class="sk-bone sk-snip"></span></div><span class="sk-bone sk-time"></span></div>
-          <div class="sk-thread" aria-hidden="true"><span class="sk-bone sk-avatar"></span><div class="sk-lines"><span class="sk-bone sk-name"></span><span class="sk-bone sk-snip"></span></div><span class="sk-bone sk-time"></span></div>
-        </div>
+        <div id="direct-chats" class="wa-thread-list" aria-busy="true"></div>
+        <div id="direct-people" class="wa-thread-list" hidden aria-busy="true"></div>
       </div>
+      <button class="wa-fab" id="direct-fab" type="button" aria-label="Message someone">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
     </main>
   </div>
   <nav class="wa-tabbar" aria-label="Main">
-    <a class="wa-tab" href="/console/group" data-nav="/console/group" aria-label="Groups">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+    <a class="wa-tab" href="/console" data-nav="/console">
+      <span class="wa-tab-ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+      <span class="wa-tab-label">Chats</span>
     </a>
-    <a class="wa-tab" href="/console" data-nav="/console" aria-label="Chats">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    <a class="wa-tab" href="/console/group" data-nav="/console/group">
+      <span class="wa-tab-ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+      <span class="wa-tab-label">Groups</span>
     </a>
-    <a class="wa-tab" href="/console/direct" data-nav="/console/direct" aria-label="Direct messages">
-      <span class="wa-tab-avatar" id="tab-avatar">?</span>
+    <a class="wa-tab" href="/console/direct" data-nav="/console/direct">
+      <span class="wa-tab-ico"><span class="wa-tab-avatar" id="tab-avatar">?</span></span>
+      <span class="wa-tab-label">Direct</span>
     </a>
-    <a class="wa-tab" href="/console/settings" data-nav="/console/settings" aria-label="Settings">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.6.9 1 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    <a class="wa-tab" href="/console/settings" data-nav="/console/settings">
+      <span class="wa-tab-ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.6.9 1 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></span>
+      <span class="wa-tab-label">Settings</span>
     </a>
   </nav>
   <script src="/config.js"></script>
   <script src="/scripts/http.js"></script>
-  <script src="/scripts/call.js?v=glare"></script>
-  <script src="/scripts/console.js?v=phone"></script>
-  <script src="/scripts/direct.js?v=sk-t"></script>
+  <script src="/scripts/call.js?v=layout"></script>
+  <script src="/scripts/console.js?v=layout"></script>
+  <script src="/scripts/direct.js?v=seen"></script>
 </body>
 </html>

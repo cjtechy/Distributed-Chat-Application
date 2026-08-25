@@ -55,6 +55,32 @@
     let presenceText = "";
     let currentIsDirect = false;
     let currentPeer = "";
+    let peerOnline = false;
+    let peerLastSeen = "";
+    let presencePollTimer = null;
+
+    function startPresencePoll() {
+      if (presencePollTimer) return;
+      presencePollTimer = setInterval(async () => {
+        if (!API_BASE || !token || !groupId || !currentIsDirect) return;
+        try {
+          const response = await fetch(`${API_BASE}/groups/${groupId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (!response.ok) return;
+          const group = await response.json();
+          const next = Boolean(group.online);
+          if (group.last_seen) peerLastSeen = group.last_seen;
+          if (next !== peerOnline) {
+            peerOnline = next;
+            if (peerOnline) markOwnMessagesDelivered();
+            updateOnlineList();
+          }
+        } catch {
+          // Keep the last known presence if this poll fails.
+        }
+      }, 12000);
+    }
     let backOnlineTimer = null;
     const RECONNECT_INTERVAL_MS = 3000;
     const RECONNECT_TIMEOUT_MS = 12000;
@@ -115,7 +141,7 @@
 
     function networkErrorMessage(error) {
       if (error?.name === "TimeoutError") return "Taking longer than usual — still trying…";
-      if (isNetworkError(error)) return "Reconnecting to the server…";
+      if (isNetworkError(error)) return "Connecting to server";
       return error?.message || "Could not reach the server.";
     }
 
@@ -124,6 +150,45 @@
       return (
         /reconnect|failed to fetch|could not reach|taking longer|network|server is not configured|database offline/.test(value)
       );
+    }
+
+    let presenceTypeTimer = null;
+    let shownPresence = "";
+
+    function revealPresence(text) {
+      if (!statusEl || text == null) return;
+      if (text === shownPresence && statusEl.textContent === text && !presenceTypeTimer) return;
+      shownPresence = text;
+      if (presenceTypeTimer) {
+        clearInterval(presenceTypeTimer);
+        presenceTypeTimer = null;
+      }
+      statusEl.classList.remove("is-typing", "is-animating");
+      if (connectionStatusEl) {
+        connectionStatusEl.classList.toggle("is-peer-online", text === "online");
+      }
+      const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const typeLastSeen = currentIsDirect && text !== "online" && String(text).indexOf("last seen") === 0;
+      if (reduce || !typeLastSeen) {
+        statusEl.textContent = text;
+        if (!reduce) {
+          void statusEl.offsetWidth;
+          statusEl.classList.add("is-animating");
+        }
+        return;
+      }
+      let i = 0;
+      statusEl.textContent = "";
+      statusEl.classList.add("is-typing");
+      presenceTypeTimer = setInterval(function () {
+        i += 1;
+        statusEl.textContent = text.slice(0, i);
+        if (i >= text.length) {
+          clearInterval(presenceTypeTimer);
+          presenceTypeTimer = null;
+          statusEl.classList.remove("is-typing");
+        }
+      }, 20);
     }
 
     function setConnectionState(state, message) {
@@ -143,7 +208,7 @@
         if (connectionState === "back") {
           connectionState = "connected";
           if (connectionStatusEl) connectionStatusEl.dataset.state = "connected";
-          if (statusEl) statusEl.textContent = presenceText || "Connected";
+          if (statusEl) revealPresence(presenceText || "Connected");
         }
       }, 2200);
     }
@@ -320,8 +385,8 @@
       wasDisconnected = true;
       const detail =
         reconnectStartedAt && Date.now() - reconnectStartedAt >= RECONNECT_TIMEOUT_MS
-          ? "Connection paused — we'll retry automatically"
-          : message || "Reconnecting…";
+          ? "Connecting to server"
+          : message || "Connecting to server";
       const state =
         reconnectStartedAt && Date.now() - reconnectStartedAt >= RECONNECT_TIMEOUT_MS
           ? "offline"
@@ -418,10 +483,7 @@
     }
 
     function reconnectStatusMessage() {
-      if (reconnectStartedAt && Date.now() - reconnectStartedAt >= RECONNECT_TIMEOUT_MS) {
-        return "Still reconnecting — hang tight";
-      }
-      return "Reconnecting…";
+      return "Connecting to server";
     }
 
     function stopReconnect() {
@@ -450,14 +512,14 @@
 
       reconnectStartedAt = Date.now();
       wasDisconnected = true;
-      setStatus(false, "Reconnecting…", "reconnecting");
+      setStatus(false, "Connecting to server", "reconnecting");
       connectSocket(true);
 
       reconnectOfflineTimer = setTimeout(() => {
         if (manualDisconnect || (socket && socket.readyState === WebSocket.OPEN)) {
           return;
         }
-        setStatus(false, "Still reconnecting — hang tight", "offline");
+        setStatus(false, "Connecting to server", "offline");
       }, RECONNECT_TIMEOUT_MS);
 
       reconnectLoopTimer = setInterval(() => {
@@ -481,6 +543,14 @@
       }
     }
 
+    function peerPresenceLabel() {
+      if (peerOnline) return "online";
+      if (window.chatUi && typeof window.chatUi.formatPresence === "function") {
+        return window.chatUi.formatPresence({ online: false, last_seen: peerLastSeen });
+      }
+      return "last seen recently";
+    }
+
     function updateOnlineList() {
       const others = [...onlineUsers].filter((name) => name !== username).sort();
       const allOnline = username ? [username, ...others] : [...onlineUsers].sort();
@@ -494,10 +564,11 @@
           : `<li><span class="dot"></span><span>No one online</span></li>`;
       }
 
-      if (others.length === 0) {
-        presenceText = currentIsDirect ? "offline" : (username ? "You're the only one here" : "No one online");
-      } else if (currentIsDirect) {
-        presenceText = "Active Now";
+      if (currentIsDirect) {
+        if (currentPeer && others.indexOf(currentPeer) >= 0) peerOnline = true;
+        presenceText = peerOnline ? "online" : peerPresenceLabel();
+      } else if (others.length === 0) {
+        presenceText = username ? "You're the only one here" : "No one online";
       } else if (others.length === 1) {
         presenceText = `${others[0]} is online`;
       } else {
@@ -505,7 +576,7 @@
       }
 
       if (connectionState === "connected" && statusEl) {
-        statusEl.textContent = presenceText;
+        revealPresence(presenceText);
       }
     }
 
@@ -521,7 +592,7 @@
         }
         updateOnlineList();
       } else if (statusEl || connectionStatusEl) {
-        wasDisconnected = true;
+        if (mode !== "connecting") wasDisconnected = true;
         if (mode === "connecting") {
           setConnectionState("connecting", message || "Connecting…");
         } else if (mode === "offline") {
@@ -577,10 +648,34 @@
       if (data.status === "viewed" || data.viewed || viewedMessageIds.has(id)) {
         return "viewed";
       }
-      if (data.status === "delivered" || data.delivered || deliveredMessageIds.has(id)) {
+      if (
+        data.status === "delivered" ||
+        data.delivered ||
+        deliveredMessageIds.has(id) ||
+        peerIsInApp()
+      ) {
         return "delivered";
       }
       return "sent";
+    }
+
+    function peerIsInApp() {
+      if (currentIsDirect) return Boolean(peerOnline);
+      for (const name of onlineUsers) {
+        if (name !== username) return true;
+      }
+      return false;
+    }
+
+    function markOwnMessagesDelivered() {
+      if (!messagesListEl) return;
+      const ids = [];
+      messagesListEl.querySelectorAll(".message-row.sent").forEach((row) => {
+        const id = String(row.id || "").replace("message-", "");
+        if (!id || id.startsWith("pending-")) return;
+        ids.push(id);
+      });
+      if (ids.length) applyReceipt(ids, "delivered");
     }
 
     function statusLabel(status) {
@@ -635,6 +730,27 @@
       flushReceipt(pendingDeliveredIds, "delivered", () => { deliveredFlushTimer = null; });
     }
 
+    function tickMarkup(status) {
+      if (status === "sent") {
+        return '<svg class="tick-icon" viewBox="0 0 16 12" aria-hidden="true"><path d="M2 6.4l3.4 3.4L14 1.8"/></svg>';
+      }
+      if (status === "delivered" || status === "viewed") {
+        return '<svg class="tick-icon" viewBox="0 0 22 12" aria-hidden="true"><path d="M1.4 6.4l3.3 3.4L12.8 1.8"/><path d="M7.2 6.4l3.3 3.4L20.6 1.6"/></svg>';
+      }
+      return "";
+    }
+
+    function setTickButton(btn, status) {
+      if (!btn) return;
+      btn.className = "send-status " + status;
+      btn.setAttribute("aria-label", statusLabel(status));
+      if (status === "failed") {
+        btn.innerHTML = "";
+        return;
+      }
+      btn.innerHTML = tickMarkup(status);
+    }
+
     function applyReceipt(ids, kind) {
       (ids || []).forEach((id) => {
         if (kind === "viewed") {
@@ -651,8 +767,7 @@
         }
         if (kind === "delivered" && btn.classList.contains("viewed")) return;
         const next = kind === "viewed" || viewedMessageIds.has(String(id)) ? "viewed" : "delivered";
-        btn.className = `send-status ${next}`;
-        btn.setAttribute("aria-label", statusLabel(next));
+        setTickButton(btn, next);
       });
     }
 
@@ -662,12 +777,190 @@
       if (observer) observer.observe(row);
     }
 
-    function renderMessage(data) {
+    let notifyCtx = null;
+    let notifySoundAt = 0;
+    let notifyAudio = null;
+    let notifyArmed = false;
+
+    function buildNotifyWavUrl() {
+      const sampleRate = 22050;
+      const duration = 0.28;
+      const count = Math.floor(sampleRate * duration);
+      const bytes = new ArrayBuffer(44 + count * 2);
+      const view = new DataView(bytes);
+      function writeStr(offset, text) {
+        for (let i = 0; i < text.length; i += 1) view.setUint8(offset + i, text.charCodeAt(i));
+      }
+      writeStr(0, "RIFF");
+      view.setUint32(4, 36 + count * 2, true);
+      writeStr(8, "WAVE");
+      writeStr(12, "fmt ");
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true);
+      view.setUint16(22, 1, true);
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * 2, true);
+      view.setUint16(32, 2, true);
+      view.setUint16(34, 16, true);
+      writeStr(36, "data");
+      view.setUint32(40, count * 2, true);
+      for (let i = 0; i < count; i += 1) {
+        const t = i / sampleRate;
+        const freq = t < 0.12 ? 1046 : 1396;
+        const attack = Math.min(1, i / 180);
+        const release = Math.min(1, (count - i) / 900);
+        const sample = Math.sin(2 * Math.PI * freq * t) * attack * release * 0.72;
+        view.setInt16(44 + i * 2, Math.round(sample * 32767), true);
+      }
+      return URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
+    }
+
+    function getNotifyAudio() {
+      if (notifyAudio) return notifyAudio;
+      notifyAudio = new Audio(buildNotifyWavUrl());
+      notifyAudio.preload = "auto";
+      notifyAudio.volume = 1;
+      return notifyAudio;
+    }
+
+    function unlockNotifyAudio() {
+      const Ctor = window.AudioContext || window.webkitAudioContext;
+      if (Ctor) {
+        if (!notifyCtx) notifyCtx = new Ctor();
+        if (notifyCtx.state === "suspended") notifyCtx.resume().catch(function () {});
+      }
+      const audio = getNotifyAudio();
+      if (notifyArmed) return;
+      audio.volume = 0.01;
+      const play = audio.play();
+      if (play && typeof play.then === "function") {
+        play.then(function () {
+          audio.pause();
+          audio.currentTime = 0;
+          audio.volume = 1;
+          notifyArmed = true;
+        }).catch(function () {});
+      } else {
+        notifyArmed = true;
+        audio.volume = 1;
+      }
+    }
+
+    function playMessageSound() {
+      unlockNotifyAudio();
+      const audio = getNotifyAudio();
+      try {
+        audio.pause();
+        audio.currentTime = 0;
+        audio.volume = 1;
+        const play = audio.play();
+        if (play && typeof play.catch === "function") play.catch(function () {});
+      } catch {
+        // Autoplay may still be blocked until the next tap.
+      }
+      if (!notifyCtx) return;
+      const start = function () {
+        const now = notifyCtx.currentTime;
+        const gain = notifyCtx.createGain();
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.linearRampToValueAtTime(0.28, now + 0.02);
+        gain.gain.linearRampToValueAtTime(0.0001, now + 0.24);
+        gain.connect(notifyCtx.destination);
+        [1046, 1396].forEach(function (freq, index) {
+          const osc = notifyCtx.createOscillator();
+          osc.type = "triangle";
+          osc.frequency.value = freq;
+          osc.connect(gain);
+          const when = now + index * 0.09;
+          osc.start(when);
+          osc.stop(when + 0.16);
+        });
+      };
+      if (notifyCtx.state === "suspended") {
+        notifyCtx.resume().then(start).catch(function () {});
+      } else {
+        start();
+      }
+    }
+
+    function notifyPref(key, fallback) {
+      if (window.chatNotify && typeof window.chatNotify.enabled === "function") {
+        return window.chatNotify.enabled(key);
+      }
+      return fallback !== false;
+    }
+
+    function playUiCue(kind) {
+      if (kind === "type" && !notifyPref("typingSound", true)) return;
+      if ((kind === "rec-start" || kind === "rec-stop") && !notifyPref("voiceSound", true)) return;
+      unlockNotifyAudio();
+      if (!notifyCtx) return;
+      const run = function () {
+        const now = notifyCtx.currentTime;
+        const gain = notifyCtx.createGain();
+        gain.connect(notifyCtx.destination);
+        if (kind === "type") {
+          gain.gain.setValueAtTime(0.09, now);
+          gain.gain.linearRampToValueAtTime(0.0001, now + 0.035);
+          const osc = notifyCtx.createOscillator();
+          osc.type = "square";
+          osc.frequency.value = 1580 + Math.random() * 280;
+          osc.connect(gain);
+          osc.start(now);
+          osc.stop(now + 0.04);
+          return;
+        }
+        if (kind === "rec-start") {
+          gain.gain.setValueAtTime(0.0001, now);
+          gain.gain.linearRampToValueAtTime(0.24, now + 0.018);
+          gain.gain.linearRampToValueAtTime(0.0001, now + 0.32);
+          [784, 1175].forEach(function (freq, index) {
+            const osc = notifyCtx.createOscillator();
+            osc.type = "sine";
+            osc.frequency.value = freq;
+            osc.connect(gain);
+            osc.start(now + index * 0.08);
+            osc.stop(now + 0.16 + index * 0.08);
+          });
+          return;
+        }
+        if (kind === "rec-stop") {
+          gain.gain.setValueAtTime(0.18, now);
+          gain.gain.linearRampToValueAtTime(0.0001, now + 0.16);
+          const osc = notifyCtx.createOscillator();
+          osc.type = "sine";
+          osc.frequency.value = 523;
+          osc.connect(gain);
+          osc.start(now);
+          osc.stop(now + 0.16);
+        }
+      };
+      if (notifyCtx.state === "suspended") {
+        notifyCtx.resume().then(run).catch(function () {});
+      } else {
+        run();
+      }
+    }
+
+    function notifyIncomingMessage() {
+      if (document.body.classList.contains("in-call")) return;
+      if (!notifyPref("messageSound", true)) return;
+      const typing = Boolean(messageEl && document.activeElement === messageEl);
+      if (typing && !notifyPref("messageWhileTyping", true)) return;
+      const t = Date.now();
+      if (t - notifySoundAt < 400) return;
+      notifySoundAt = t;
+      playMessageSound();
+      if (notifyPref("vibrate", true) && navigator.vibrate) navigator.vibrate(24);
+    }
+
+    function renderMessage(data, options) {
       const isOwn = data.username === username;
       const status = receiptStatus(data, isOwn);
       if (status === "viewed") viewedMessageIds.add(String(data.id));
       if (status === "delivered" || status === "viewed") deliveredMessageIds.add(String(data.id));
       let row = document.getElementById(`message-${data.id}`);
+      const isNew = !row;
       if (!row) {
         row = document.createElement("div");
         row.id = `message-${data.id}`;
@@ -692,7 +985,7 @@
       const sendStatus = isOwn
         ? `<button type="button" class="send-status ${status}" ${
             status === "failed" ? `data-retry="${data.id}"` : ""
-          } aria-label="${statusLabel(status)}" ${status === "failed" ? "" : "tabindex='-1'"}></button>`
+          } aria-label="${statusLabel(status)}" ${status === "failed" ? "" : "tabindex='-1'"}>${tickMarkup(status)}</button>`
         : "";
 
       row.innerHTML = `
@@ -707,6 +1000,9 @@
         </div>`;
 
       observeReceipts(row);
+      if (!isOwn && isNew && !(options && options.silent)) {
+        notifyIncomingMessage();
+      }
       if (!isOwn && data.id && !String(data.id).startsWith("pending-")) {
         queueDelivered(data.id);
         if (document.visibilityState === "visible") markRoomRead();
@@ -919,7 +1215,7 @@
         disconnectSocket();
         return;
       }
-      if (data.group_id != null && Number(data.group_id) !== groupId && data.type !== "group_full") {
+      if (data.group_id != null && Number(data.group_id) !== groupId && data.type !== "group_full" && data.type !== "presence") {
         return;
       }
       if (data.type === "group_full") {
@@ -939,6 +1235,19 @@
       if (data.type === "online") {
         onlineUsers.add(data.username);
         updateOnlineList();
+        return;
+      }
+      if (data.type === "presence") {
+        if (data.username && data.username !== username && data.online) {
+          if (currentIsDirect && data.username === currentPeer) peerOnline = true;
+          markOwnMessagesDelivered();
+        }
+        if (currentIsDirect && data.username === currentPeer) {
+          peerOnline = Boolean(data.online);
+          if (data.last_seen) peerLastSeen = data.last_seen;
+          else if (!peerOnline) peerLastSeen = new Date().toISOString();
+          updateOnlineList();
+        }
         return;
       }
       if (data.type === "offline") {
@@ -1002,6 +1311,11 @@
       const isDirect = Boolean(group && group.is_direct);
       currentIsDirect = isDirect;
       currentPeer = isDirect ? (group && (group.peer || group.name) ? (group.peer || group.name) : "") : "";
+      peerOnline = Boolean(isDirect && group && group.online);
+      peerLastSeen = isDirect && group ? (group.last_seen || group.last_at || "") : "";
+      if (isDirect && peerOnline && typeof markOwnMessagesDelivered === "function") {
+        markOwnMessagesDelivered();
+      }
       document.body.classList.toggle("direct-chat", isDirect);
       if (groupNameEl) groupNameEl.textContent = name;
       if (groupHeadingEl) groupHeadingEl.textContent = name;
@@ -1027,6 +1341,7 @@
       }
       document.title = name + " — Chat";
       if (chatHeaderEl) chatHeaderEl.classList.remove("is-loading");
+      if (isDirect) updateOnlineList();
     }
 
     let readFlushTimer = null;
@@ -1092,7 +1407,7 @@
           // Keep the fallback message if the body is not JSON.
         }
         if (response.status >= 500) {
-          markApiOffline("Reconnecting to the server…");
+          markApiOffline("Connecting to server");
           throw new Error(detail);
         }
         applyGroup({ name: "Unavailable", member_count: 0, is_default: false, is_direct: false });
@@ -1107,6 +1422,7 @@
         // Ignore storage failures in restricted browsers.
       }
       applyGroup(group);
+      startPresencePoll();
       return group;
     }
 
@@ -1123,13 +1439,15 @@
       }
       if (!response.ok) {
         if (response.status >= 500) {
-          markApiOffline("Reconnecting to the server…");
+          markApiOffline("Connecting to server");
         }
         throw new Error("Could not load message history.");
       }
       const history = await response.json();
       if (replace && messagesListEl) messagesListEl.innerHTML = "";
-      history.forEach(renderMessage);
+      history.forEach(function (item) {
+        renderMessage(item, { silent: true });
+      });
       applyMessageGrouping();
       setHistoryLoading(false);
       stickToBottom = true;
@@ -1295,6 +1613,7 @@
     if (messageEl) messageEl.addEventListener("input", () => {
       sendTypingSignal();
       syncComposeButtons();
+      if (notifyPref("typingSound", true)) playUiCue("type");
     });
 
     let mediaRecorder = null;
@@ -1332,10 +1651,17 @@
 
     function setVoiceRecording(active) {
       if (!voiceBtn) return;
+      const was = voiceBtn.classList.contains("recording");
       voiceBtn.classList.toggle("recording", active);
       voiceBtn.disabled = voiceBusy && !active;
       voiceBtn.setAttribute("aria-pressed", active ? "true" : "false");
       voiceBtn.setAttribute("aria-label", active ? "Stop recording" : "Record voice message");
+      if (active && !was) {
+        playUiCue("rec-start");
+        if (notifyPref("vibrate", true) && navigator.vibrate) navigator.vibrate(30);
+      } else if (!active && was) {
+        playUiCue("rec-stop");
+      }
       syncComposeButtons();
     }
 
@@ -1550,6 +1876,12 @@
       }
     });
 
+    document.addEventListener("pointerdown", unlockNotifyAudio);
+    document.addEventListener("keydown", unlockNotifyAudio);
+    document.addEventListener("touchend", unlockNotifyAudio, { passive: true });
+    if (messageEl) messageEl.addEventListener("focus", unlockNotifyAudio);
+    if (chatForm) chatForm.addEventListener("submit", unlockNotifyAudio);
+
     if (messagesEl) {
       messagesEl.addEventListener("scroll", onMessagesScroll, { passive: true });
     }
@@ -1630,6 +1962,7 @@
         getUsername: () => username,
         getGroupId: () => groupId,
         getPeer: () => currentPeer,
+        getPeerOnline: () => Boolean(peerOnline),
         getToken: () => token,
         getApiBase: () => API_BASE,
       });

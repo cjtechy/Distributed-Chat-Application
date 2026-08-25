@@ -59,7 +59,7 @@ start_session(Username, GroupId, State) ->
     end.
 
 connected_replies(Username, GroupId, State) ->
-    {Users, IsNew} = chat_redis:mark_online(Username, GroupId),
+    {Users, IsNew, GlobalNew} = chat_redis:mark_online(Username, GroupId),
     List = jsone:encode(#{type => online_list, users => Users, group_id => GroupId}),
     Replies = case IsNew of
         true ->
@@ -68,6 +68,13 @@ connected_replies(Username, GroupId, State) ->
             [{text, List}];
         false ->
             [{text, List}]
+    end,
+    case GlobalNew of
+        true ->
+            chat_redis:publish(chat_config:chat_channel(),
+                jsone:encode(#{type => presence, username => Username, online => true}));
+        false ->
+            ok
     end,
     Clean = maps:remove(pending_auth, State#{username => Username, group_id => GroupId}),
     {Replies, Clean}.
@@ -161,10 +168,18 @@ websocket_info(_Info, State) ->
     {ok, State}.
 
 terminate(_Reason, _Req, #{username := Username, group_id := GroupId}) ->
-    case chat_redis:mark_offline(Username, GroupId) of
+    {WentOffline, GlobalOff, Ts} = chat_redis:mark_offline(Username, GroupId),
+    case WentOffline of
         true ->
             chat_redis:publish(chat_config:chat_channel(),
                 jsone:encode(#{type => offline, username => Username, group_id => GroupId}));
+        false ->
+            ok
+    end,
+    case GlobalOff of
+        true ->
+            chat_redis:publish(chat_config:chat_channel(),
+                jsone:encode(#{type => presence, username => Username, online => false, last_seen => Ts}));
         false ->
             ok
     end,

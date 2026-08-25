@@ -51,10 +51,26 @@
         id: chat.id,
         name: chat.name || chat.peer || "Direct",
         unread_count: chat.unread_count,
+        last_message: chat.last_message || "",
+        last_at: chat.last_at,
+        last_sender: chat.last_sender,
+        is_direct: true,
+        online: chat.online,
+        last_seen: chat.last_seen,
+        show_presence: !chat.last_message,
+      });
+    }
+    if (window.chatUi) {
+      return window.chatUi.threadRow({
+        id: chat.id,
+        name: chat.name || chat.peer || "Direct",
+        unread_count: chat.unread_count,
         last_message: chat.last_message || "Private conversation",
         last_at: chat.last_at,
         last_sender: chat.last_sender,
         is_direct: true,
+        online: chat.online,
+        last_seen: chat.last_seen,
       });
     }
     var article = document.createElement("article");
@@ -94,7 +110,9 @@
       });
       return window.chatUi.threadRow({
         name: person.username,
-        last_message: "Send a private message",
+        show_presence: true,
+        online: person.online,
+        last_seen: person.last_seen,
         is_direct: true,
       }, button);
     }
@@ -121,6 +139,90 @@
     return article;
   }
 
+  var chats = [];
+  var people = [];
+  var view = "chats";
+  var searchInput = document.getElementById("direct-search");
+  var fab = document.getElementById("direct-fab");
+
+  function query() {
+    return String(searchInput && searchInput.value || "").trim().toLowerCase();
+  }
+
+  function matchesQuery(text) {
+    var q = query();
+    if (!q) return true;
+    return String(text || "").toLowerCase().indexOf(q) !== -1;
+  }
+
+  function setView(next) {
+    view = next;
+    document.querySelectorAll("[data-direct-filter]").forEach(function (chip) {
+      chip.setAttribute("aria-pressed", chip.getAttribute("data-direct-filter") === view ? "true" : "false");
+    });
+    paint();
+  }
+
+  function fillList(el, nodes, emptyText) {
+    if (!el) return;
+    el.replaceChildren();
+    el.removeAttribute("aria-busy");
+    if (!nodes.length) {
+      el.appendChild(window.chatUi
+        ? window.chatUi.empty(emptyText)
+        : (function () {
+            var empty = document.createElement("p");
+            empty.className = "lead";
+            empty.textContent = emptyText;
+            return empty;
+          })());
+      return;
+    }
+    nodes.forEach(function (node) {
+      el.appendChild(node);
+    });
+  }
+
+  function paint() {
+    var q = query();
+    var searching = q.length > 0;
+    if (form) form.hidden = searching || view !== "people";
+
+    var shownChats = chats.filter(function (chat) {
+      return matchesQuery(chat.name || chat.peer || "");
+    });
+    var shownPeople = people.filter(function (person) {
+      return matchesQuery(person.username);
+    });
+
+    if (searching) {
+      chatsEl.hidden = shownChats.length === 0;
+      if (peopleEl) peopleEl.hidden = false;
+      if (shownChats.length) {
+        fillList(chatsEl, shownChats.map(chatCard), "");
+      } else {
+        chatsEl.replaceChildren();
+      }
+      fillList(
+        peopleEl,
+        shownPeople.map(personCard),
+        shownChats.length ? "" : "No usernames match “" + q + "”."
+      );
+      if (!shownPeople.length && peopleEl && shownChats.length) {
+        peopleEl.replaceChildren();
+      }
+      return;
+    }
+
+    chatsEl.hidden = view !== "chats";
+    if (peopleEl) peopleEl.hidden = view !== "people";
+    if (view === "chats") {
+      fillList(chatsEl, shownChats.map(chatCard), "No private chats yet. Open People or search a username.");
+      return;
+    }
+    fillList(peopleEl, shownPeople.map(personCard), "No other members to message yet.");
+  }
+
   function loadChats() {
     return fetch(API_BASE + "/direct", {
       headers: headers,
@@ -130,23 +232,9 @@
         if (!response.ok) throw new Error("Could not load direct messages.");
         return response.json();
       })
-      .then(function (chats) {
-        chatsEl.replaceChildren();
-        chatsEl.removeAttribute("aria-busy");
-        if (!Array.isArray(chats) || !chats.length) {
-          chatsEl.appendChild(window.chatUi
-            ? window.chatUi.empty("No private chats yet. Pick a member below.")
-            : (function () {
-                var empty = document.createElement("p");
-                empty.className = "lead";
-                empty.textContent = "No private chats yet. Pick a member below.";
-                return empty;
-              })());
-          return;
-        }
-        chats.forEach(function (chat) {
-          chatsEl.appendChild(chatCard(chat));
-        });
+      .then(function (data) {
+        chats = Array.isArray(data) ? data : [];
+        paint();
       });
   }
 
@@ -160,23 +248,9 @@
         if (!response.ok) throw new Error("Could not load members.");
         return response.json();
       })
-      .then(function (people) {
-        peopleEl.replaceChildren();
-        peopleEl.removeAttribute("aria-busy");
-        if (!Array.isArray(people) || !people.length) {
-          peopleEl.appendChild(window.chatUi
-            ? window.chatUi.empty("No other members to message yet.")
-            : (function () {
-                var empty = document.createElement("p");
-                empty.className = "lead";
-                empty.textContent = "No other members to message yet.";
-                return empty;
-              })());
-          return;
-        }
-        people.forEach(function (person) {
-          peopleEl.appendChild(personCard(person));
-        });
+      .then(function (data) {
+        people = Array.isArray(data) ? data : [];
+        paint();
       });
   }
 
@@ -222,6 +296,7 @@
     Promise.all([loadChats(), loadPeople()])
       .then(function () {
         if (cancelDirectTimeout) cancelDirectTimeout();
+        paint();
       })
       .catch(function (err) {
         if (cancelDirectTimeout) cancelDirectTimeout();
@@ -239,6 +314,22 @@
           showError(err.message || "Could not load direct messages.");
         }
       });
+  }
+
+  document.querySelectorAll("[data-direct-filter]").forEach(function (chip) {
+    chip.addEventListener("click", function () {
+      setView(chip.getAttribute("data-direct-filter") || "chats");
+    });
+  });
+  if (searchInput) {
+    searchInput.addEventListener("input", paint);
+  }
+  if (fab) {
+    fab.addEventListener("click", function () {
+      setView("people");
+      var input = document.getElementById("direct-username");
+      if (input) input.focus();
+    });
   }
 
   loadDirectPage();

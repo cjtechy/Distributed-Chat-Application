@@ -44,8 +44,10 @@ init([]) ->
 handle_call({mark_online, Username, GroupId}, _From, #{conn := Conn} = State) ->
     {ok, CountBin} = eredis:q(Conn, ["HINCRBY", online_key(GroupId), Username, "1"]),
     Count = binary_to_integer(CountBin),
+    {ok, PresBin} = eredis:q(Conn, ["HINCRBY", presence_key(), Username, "1"]),
+    GlobalNew = binary_to_integer(PresBin) =:= 1,
     {ok, Users} = fetch_users(Conn, GroupId),
-    {reply, {Users, Count =:= 1}, State};
+    {reply, {Users, Count =:= 1, GlobalNew}, State};
 handle_call({mark_offline, Username, GroupId}, _From, #{conn := Conn} = State) ->
     {ok, CountBin} = eredis:q(Conn, ["HINCRBY", online_key(GroupId), Username, "-1"]),
     Count = binary_to_integer(CountBin),
@@ -54,7 +56,19 @@ handle_call({mark_offline, Username, GroupId}, _From, #{conn := Conn} = State) -
         true -> eredis:q(Conn, ["HDEL", online_key(GroupId), Username]);
         false -> ok
     end,
-    {reply, WentOffline, State};
+    {ok, PresBin} = eredis:q(Conn, ["HINCRBY", presence_key(), Username, "-1"]),
+    Pres = binary_to_integer(PresBin),
+    GlobalOff = Pres =< 0,
+    Ts = case GlobalOff of
+        true ->
+            eredis:q(Conn, ["HDEL", presence_key(), Username]),
+            Time = integer_to_binary(erlang:system_time(second)),
+            eredis:q(Conn, ["HSET", last_seen_key(), Username, Time]),
+            Time;
+        false ->
+            <<>>
+    end,
+    {reply, {WentOffline, GlobalOff, Ts}, State};
 handle_call({online_users, GroupId}, _From, #{conn := Conn} = State) ->
     {ok, Users} = fetch_users(Conn, GroupId),
     {reply, Users, State};
@@ -95,6 +109,10 @@ online_key(GroupId) ->
     Key = chat_config:online_key(),
     Id = integer_to_binary(GroupId),
     <<Key/binary, ":", Id/binary>>.
+
+presence_key() -> <<"chat:presence">>.
+
+last_seen_key() -> <<"chat:last_seen">>.
 
 members_key(GroupId) ->
     Id = integer_to_binary(GroupId),

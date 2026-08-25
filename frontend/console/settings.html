@@ -4,7 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Settings — Distributed Chat</title>
-  <link rel="stylesheet" href="/assets/console.css?v=phone">
+  <link rel="stylesheet" href="/assets/console.css?v=layout">
+
 </head>
 <body>
   <div class="console-app">
@@ -28,46 +29,84 @@
       </div>
     </nav>
     <main class="console-main">
-      <div class="console-page">
-        <header class="wa-page-head">
-          <div>
-            <span class="wa-logo">Chat</span>
-            <h1>Settings</h1>
-          </div>
+      <div class="wa-inbox settings-screen">
+        <header class="settings-top">
+          <a class="wa-icon-btn" href="/console" aria-label="Back">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+          </a>
+          <h1>Settings</h1>
+          <span class="wa-icon-btn" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          </span>
         </header>
-        <p class="lead">Account details for this session.</p>
-        <article class="panel-card">
-          <div class="settings-row">
-            <span>Username</span>
-            <strong id="settings-username">—</strong>
-          </div>
-          <div class="settings-row">
-            <span>Role</span>
-            <strong id="settings-role">—</strong>
-          </div>
-          <p style="margin-top:18px">Signing out clears this device’s session token. You can sign in again from the home page.</p>
-          <button class="btn-ghost" id="console-logout-settings" type="button" style="margin-top:12px">Log out</button>
-        </article>
+        <div class="settings-hero">
+          <span class="settings-hero-avatar" id="settings-avatar">?</span>
+          <strong id="settings-username">—</strong>
+          <span id="settings-email"></span>
+        </div>
+        <div class="settings-list">
+          <a class="settings-item js-admin-link" href="/admin" hidden>
+            <span class="settings-ico" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82 2 2 0 1 1-2.83 2.83 1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33 2 2 0 1 1-2.83-2.83A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82 2 2 0 1 1 2.83-2.83A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33 2 2 0 1 1 2.83 2.83A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15z"/></svg></span>
+            <span class="settings-copy"><b>Admin</b><small>Members, messages, health</small></span>
+          </a>
+          <a class="settings-item" href="/console/settings/account.html">
+            <span class="settings-ico" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 2l-2 2m-7.5 7.5L7 16l-4 1 1-4 7.5-7.5m4-4L19 5m-2.5 2.5L9 15"/></svg></span>
+            <span class="settings-copy"><b>Account</b><small>Security notifications, change number</small></span>
+          </a>
+          <a class="settings-item" href="/console/settings/privacy.html">
+            <span class="settings-ico" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>
+            <span class="settings-copy"><b>Privacy</b><small>Block contacts, disappearing messages</small></span>
+          </a>
+          <a class="settings-item" href="/console/settings/avatar.html">
+            <span class="settings-ico" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><circle cx="9" cy="9" r="1" fill="currentColor"/><circle cx="15" cy="9" r="1" fill="currentColor"/></svg></span>
+            <span class="settings-copy"><b>Avatar</b><small>Create, edit, profile photo</small></span>
+          </a>
+          <a class="settings-item" href="/console/settings/favourites.html">
+            <span class="settings-ico" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg></span>
+            <span class="settings-copy"><b>Favourites</b><small>Add, reorder, remove</small></span>
+          </a>
+          <a class="settings-item" href="/console">
+            <span class="settings-ico" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+            <span class="settings-copy"><b>Chats</b><small>Theme, wallpapers, chat history</small></span>
+          </a>
+          <a class="settings-item" href="/console/settings/notifications.html">
+            <span class="settings-ico" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M18 8A6 6 0 1 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span>
+            <span class="settings-copy"><b>Notifications</b><small>Message, group &amp; call tones</small></span>
+          </a>
+          <a class="settings-item" href="/console/settings/storage.html">
+            <span class="settings-ico" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></span>
+            <span class="settings-copy"><b>Storage and data</b><small>Network usage, auto-download</small></span>
+          </a>
+          <a class="settings-item" href="/console/settings/language">
+            <span class="settings-ico" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/></svg></span>
+            <span class="settings-copy"><b>App language</b><small id="settings-language-label">English (device's language)</small></span>
+          </a>
+        </div>
+        <button class="settings-logout" id="console-logout-settings" type="button">Log out</button>
       </div>
     </main>
   </div>
   <nav class="wa-tabbar" aria-label="Main">
-    <a class="wa-tab" href="/console/group" data-nav="/console/group" aria-label="Groups">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+    <a class="wa-tab" href="/console" data-nav="/console">
+      <span class="wa-tab-ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+      <span class="wa-tab-label">Chats</span>
     </a>
-    <a class="wa-tab" href="/console" data-nav="/console" aria-label="Chats">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    <a class="wa-tab" href="/console/group" data-nav="/console/group">
+      <span class="wa-tab-ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+      <span class="wa-tab-label">Groups</span>
     </a>
-    <a class="wa-tab" href="/console/direct" data-nav="/console/direct" aria-label="Direct messages">
-      <span class="wa-tab-avatar" id="tab-avatar">?</span>
+    <a class="wa-tab" href="/console/direct" data-nav="/console/direct">
+      <span class="wa-tab-ico"><span class="wa-tab-avatar" id="tab-avatar">?</span></span>
+      <span class="wa-tab-label">Direct</span>
     </a>
-    <a class="wa-tab" href="/console/settings" data-nav="/console/settings" aria-label="Settings">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.6.9 1 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    <a class="wa-tab" href="/console/settings" data-nav="/console/settings">
+      <span class="wa-tab-ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.6.9 1 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></span>
+      <span class="wa-tab-label">Settings</span>
     </a>
   </nav>
   <script src="/config.js"></script>
   <script src="/scripts/http.js"></script>
-  <script src="/scripts/call.js?v=glare"></script>
-  <script src="/scripts/console.js?v=phone"></script>
+  <script src="/scripts/call.js?v=layout"></script>
+  <script src="/scripts/console.js?v=layout"></script>
 </body>
 </html>

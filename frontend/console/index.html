@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Chats — Distributed Chat</title>
-  <link rel="stylesheet" href="/assets/console.css?v=phone">
+  <link rel="stylesheet" href="/assets/console.css?v=layout">
 </head>
-<body>
+<body class="console-home">
   <div class="console-app">
     <nav class="console-nav" id="console-nav">
       <a class="console-brand" href="/console">
@@ -28,57 +28,107 @@
       </div>
     </nav>
     <main class="console-main">
-      <div class="wa-inbox">
-        <header class="wa-page-head">
-          <div>
-            <span class="wa-logo">Chat</span>
-            <h1>Chats <span class="wa-count" id="inbox-count" hidden>0</span></h1>
+      <div class="console-shell">
+        <section class="wa-inbox">
+          <header class="wa-page-head">
+            <span class="wa-logo">Chats</span>
+            <div class="wa-head-actions">
+              <a class="wa-icon-btn" href="/console/direct" aria-label="New chat">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+              </a>
+              <div class="wa-more">
+                <button class="wa-icon-btn" id="inbox-more-btn" type="button" aria-label="More" aria-expanded="false" aria-haspopup="true">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
+                </button>
+                <div class="wa-more-menu" id="inbox-more-menu" hidden>
+                  <a href="/console/group">New group</a>
+                  <a href="/console/direct">New chat</a>
+                  <a href="/console/settings">Settings</a>
+                </div>
+              </div>
+            </div>
+          </header>
+          <label class="wa-search open" id="inbox-search-wrap">
+            <span class="wa-search-mark" aria-hidden="true">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            </span>
+            <input id="inbox-search" type="search" placeholder="Search or start a new chat" autocomplete="off">
+          </label>
+          <div class="wa-chips" role="tablist" aria-label="Filter chats">
+            <button class="wa-chip" type="button" data-filter="all" aria-pressed="true">All</button>
+            <button class="wa-chip" type="button" data-filter="unread" aria-pressed="false">Unread</button>
+            <button class="wa-chip" type="button" data-filter="groups" aria-pressed="false">Groups</button>
           </div>
-          <div class="wa-head-actions">
-            <button class="wa-icon-btn" id="inbox-search-btn" type="button" aria-label="Search chats">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/></svg>
-            </button>
-            <a class="wa-icon-btn" href="/console/settings" aria-label="More">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
-            </a>
+          <div id="inbox-list" class="wa-thread-list" aria-busy="true" aria-label="Loading chats">
+            <div class="sk-thread" aria-hidden="true"><span class="sk-bone sk-avatar"></span><div class="sk-lines"><span class="sk-bone sk-name"></span><span class="sk-bone sk-snip"></span></div><span class="sk-bone sk-time"></span></div>
+            <div class="sk-thread" aria-hidden="true"><span class="sk-bone sk-avatar"></span><div class="sk-lines"><span class="sk-bone sk-name"></span><span class="sk-bone sk-snip"></span></div><span class="sk-bone sk-time"></span></div>
+            <div class="sk-thread" aria-hidden="true"><span class="sk-bone sk-avatar"></span><div class="sk-lines"><span class="sk-bone sk-name"></span><span class="sk-bone sk-snip"></span></div><span class="sk-bone sk-time"></span></div>
+            <div class="sk-thread" aria-hidden="true"><span class="sk-bone sk-avatar"></span><div class="sk-lines"><span class="sk-bone sk-name"></span><span class="sk-bone sk-snip"></span></div><span class="sk-bone sk-time"></span></div>
+            <div class="sk-thread" aria-hidden="true"><span class="sk-bone sk-avatar"></span><div class="sk-lines"><span class="sk-bone sk-name"></span><span class="sk-bone sk-snip"></span></div><span class="sk-bone sk-time"></span></div>
+            <div class="sk-thread" aria-hidden="true"><span class="sk-bone sk-avatar"></span><div class="sk-lines"><span class="sk-bone sk-name"></span><span class="sk-bone sk-snip"></span></div><span class="sk-bone sk-time"></span></div>
+            <div class="sk-thread" aria-hidden="true"><span class="sk-bone sk-avatar"></span><div class="sk-lines"><span class="sk-bone sk-name"></span><span class="sk-bone sk-snip"></span></div><span class="sk-bone sk-time"></span></div>
           </div>
-        </header>
-        <div class="wa-search" id="inbox-search-wrap">
-          <input id="inbox-search" type="search" placeholder="Search" autocomplete="off">
-        </div>
-        <div id="inbox-list" class="wa-thread-list" aria-busy="true" aria-label="Loading chats">
-          <div class="sk-thread" aria-hidden="true"><span class="sk-bone sk-avatar"></span><div class="sk-lines"><span class="sk-bone sk-name"></span><span class="sk-bone sk-snip"></span></div><span class="sk-bone sk-time"></span></div>
-          <div class="sk-thread" aria-hidden="true"><span class="sk-bone sk-avatar"></span><div class="sk-lines"><span class="sk-bone sk-name"></span><span class="sk-bone sk-snip"></span></div><span class="sk-bone sk-time"></span></div>
-          <div class="sk-thread" aria-hidden="true"><span class="sk-bone sk-avatar"></span><div class="sk-lines"><span class="sk-bone sk-name"></span><span class="sk-bone sk-snip"></span></div><span class="sk-bone sk-time"></span></div>
-          <div class="sk-thread" aria-hidden="true"><span class="sk-bone sk-avatar"></span><div class="sk-lines"><span class="sk-bone sk-name"></span><span class="sk-bone sk-snip"></span></div><span class="sk-bone sk-time"></span></div>
-          <div class="sk-thread" aria-hidden="true"><span class="sk-bone sk-avatar"></span><div class="sk-lines"><span class="sk-bone sk-name"></span><span class="sk-bone sk-snip"></span></div><span class="sk-bone sk-time"></span></div>
-          <div class="sk-thread" aria-hidden="true"><span class="sk-bone sk-avatar"></span><div class="sk-lines"><span class="sk-bone sk-name"></span><span class="sk-bone sk-snip"></span></div><span class="sk-bone sk-time"></span></div>
-          <div class="sk-thread" aria-hidden="true"><span class="sk-bone sk-avatar"></span><div class="sk-lines"><span class="sk-bone sk-name"></span><span class="sk-bone sk-snip"></span></div><span class="sk-bone sk-time"></span></div>
-        </div>
+        </section>
+        <section class="console-preview" aria-label="Conversation preview">
+          <header class="console-preview-head">
+            <span class="console-preview-status"><span></span> Online</span>
+            <div class="console-preview-actions" aria-hidden="true">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+          </header>
+          <div class="console-preview-body">
+            <div class="console-preview-bubbles" aria-hidden="true">
+              <span class="preview-bubble in"></span>
+              <span class="preview-bubble in wide"></span>
+              <span class="preview-bubble out"></span>
+              <span class="preview-bubble in short"></span>
+              <span class="preview-bubble out wide"></span>
+            </div>
+            <div class="console-preview-lockup">
+              <span class="console-preview-mark" aria-hidden="true">
+                <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              </span>
+              <h2>Distributed Chat</h2>
+            </div>
+          </div>
+        </section>
       </div>
-      <a class="wa-fab" href="/console/direct">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M22 16.92V21a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 5.18 2 2 0 0 1 4.11 3h4.09a2 2 0 0 1 2 1.72c.12.9.32 1.77.59 2.61a2 2 0 0 1-.45 2.11L9.09 10.91a16 16 0 0 0 6 6l1.47-1.25a2 2 0 0 1 2.11-.45c.84.27 1.71.47 2.61.59A2 2 0 0 1 22 16.92z"/></svg>
-        New
+      <a class="wa-fab" href="/console/direct" aria-label="New chat">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
       </a>
     </main>
   </div>
   <nav class="wa-tabbar" aria-label="Main">
-    <a class="wa-tab" href="/console/group" data-nav="/console/group" aria-label="Groups">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+    <a class="wa-tab" href="/console" data-nav="/console">
+      <span class="wa-tab-ico">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      </span>
+      <span class="wa-tab-label">Chats</span>
     </a>
-    <a class="wa-tab" href="/console" data-nav="/console" aria-label="Chats">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    <a class="wa-tab" href="/console/group" data-nav="/console/group">
+      <span class="wa-tab-ico">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      </span>
+      <span class="wa-tab-label">Groups</span>
     </a>
-    <a class="wa-tab" href="/console/direct" data-nav="/console/direct" aria-label="Direct messages">
-      <span class="wa-tab-avatar" id="tab-avatar">?</span>
+    <a class="wa-tab" href="/console/direct" data-nav="/console/direct">
+      <span class="wa-tab-ico">
+        <span class="wa-tab-avatar" id="tab-avatar">?</span>
+      </span>
+      <span class="wa-tab-label">Direct</span>
     </a>
-    <a class="wa-tab" href="/console/settings" data-nav="/console/settings" aria-label="Settings">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.6.9 1 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    <a class="wa-tab" href="/console/settings" data-nav="/console/settings">
+      <span class="wa-tab-ico">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.6.9 1 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      </span>
+      <span class="wa-tab-label">Settings</span>
     </a>
   </nav>
   <script src="/config.js"></script>
   <script src="/scripts/http.js"></script>
-  <script src="/scripts/call.js?v=glare"></script>
-  <script src="/scripts/console.js?v=phone"></script>
+  <script src="/scripts/call.js?v=layout"></script>
+  <script src="/scripts/console.js?v=layout"></script>
 </body>
 </html>

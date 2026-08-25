@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Avatar — Settings</title>
+  <link rel="stylesheet" href="/assets/console.css?v=layout">
+</head>
+<body>
+  <div class="console-app">
+    <nav class="console-nav" id="console-nav">
+      <a class="console-brand" href="/console"><span class="console-brand-mark" aria-hidden="true">💬</span> Chat</a>
+      <div class="console-links">
+        <a href="/console" data-nav="/console">Chats</a>
+        <a href="/console/group" data-nav="/console/group">Groups</a>
+        <a href="/console/direct" data-nav="/console/direct">Direct</a>
+        <a href="/console/settings" data-nav="/console/settings">Settings</a>
+      </div>
+      <div class="console-user">
+        <span class="console-user-name" id="console-username">…</span>
+        <div class="console-user-actions">
+          <a class="btn-ghost" id="console-admin" href="/admin" hidden>Admin</a>
+          <button class="btn-ghost" id="console-logout" type="button">Log out</button>
+        </div>
+      </div>
+    </nav>
+    <main class="console-main">
+      <div class="wa-inbox settings-screen">
+        <header class="settings-top">
+          <a class="wa-icon-btn" href="/console/settings" aria-label="Back"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></a>
+          <h1>Avatar</h1>
+        </header>
+        <div class="settings-hero">
+          <span class="settings-hero-avatar" id="settings-avatar">?</span>
+          <strong id="settings-username">—</strong>
+        </div>
+        <p class="settings-note">Your avatar is the first letter of your username. Photo upload is not available yet.</p>
+      </div>
+    </main>
+  </div>
+  <script src="/config.js"></script>
+  <script src="/scripts/http.js"></script>
+  <script src="/scripts/call.js?v=layout"></script>
+  <script src="/scripts/console.js?v=layout"></script>
+</body>
+</html>
