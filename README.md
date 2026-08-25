@@ -77,6 +77,12 @@ Distributed-Chat-Application/
 │   ├── scripts/call.js        Global incoming-call overlay
 │   ├── admin.html             Admin portal
 │   └── config.js              API_BASE + WS_BASE
+├── docker/
+│   ├── backend.Dockerfile     FastAPI image
+│   ├── erlang.Dockerfile      Cowboy WebSocket image
+│   ├── local.env              Shared env for Compose (Postgres/Redis hostnames)
+│   └── nginx-frontend.conf    Static UI (pretty URLs)
+├── docker-compose.yml         Local stack: Postgres, Redis, API, WS, nginx
 ├── deploy/
 │   ├── cloudformation.yaml   Database + application EC2 stack (frontend is Amplify)
 │   └── application.sh        Pull and restart on the application host
@@ -105,7 +111,9 @@ Incoming calls overlay every `/console/*` screen. Camera and microphone need a s
 
 ## Setup
 
-You need **Python 3.11+**, **PostgreSQL**, **Redis**, and **Erlang/OTP 26+**.
+**Prefer Docker?** Skip this section and use [Run locally with Docker](#run-locally-with-docker).
+
+For a manual install you need **Python 3.11+**, **PostgreSQL**, **Redis**, and **Erlang/OTP 26+**.
 
 From the project root:
 
@@ -147,7 +155,59 @@ redis-cli ping
 
 You should see `PONG`. Point `REDIS_HOST` at `127.0.0.1` if Redis is reachable from Windows that way.
 
-## Run
+## Run locally with Docker
+
+This is the simplest way to run the whole stack on one machine. You need **Docker Desktop** (or Docker Engine + Compose v2). You do **not** need a local Python venv, Postgres, Redis, or Erlang install.
+
+From the project root:
+
+```powershell
+docker compose up --build
+```
+
+That starts five services:
+
+| Service | What it is | Port on your machine |
+|---------|------------|----------------------|
+| `postgres` | PostgreSQL 16 | `5432` |
+| `redis` | Redis 7 | `6379` |
+| `api` | FastAPI (`docker/backend.Dockerfile`) | `8000` |
+| `ws` | Erlang WebSockets (`docker/erlang.Dockerfile`) | `8080` |
+| `frontend` | nginx serving `frontend/` | `5500` and `80` |
+
+Open:
+
+- App: [http://127.0.0.1:5500](http://127.0.0.1:5500) (or [http://127.0.0.1](http://127.0.0.1) on port 80)
+- Console (after sign-in): [http://127.0.0.1:5500/console](http://127.0.0.1:5500/console)
+- Admin portal: [http://127.0.0.1:5500/admin](http://127.0.0.1:5500/admin)
+- API health: [http://127.0.0.1:8000/v1/health](http://127.0.0.1:8000/v1/health)
+- Erlang health: [http://127.0.0.1:8080/health](http://127.0.0.1:8080/health)
+
+`frontend/config.js` already points at `127.0.0.1:8000` and `127.0.0.1:8080` when the hostname is `localhost` or `127.0.0.1`. Open the UI on those hosts, not a LAN IP, or the browser will use the production API instead.
+
+Compose reads **`docker/local.env`**, not `backend/.env`. Hostnames there are the Compose service names (`postgres`, `redis`). Defaults include a bootstrap admin (`ADMIN_USERNAME=admin` / `ADMIN_PASSWORD=change-me-admin`). Change those before sharing the machine.
+
+Useful commands:
+
+```powershell
+docker compose up --build          # first run, or after backend / Erlang code changes
+docker compose up -d               # background
+docker compose logs -f api ws      # follow API and WebSocket logs
+docker compose down                # stop containers (keeps the Postgres volume)
+docker compose down -v             # stop and delete chat data
+```
+
+The frontend is bind-mounted from `./frontend`, so HTML/CSS/JS edits show up after a hard-refresh. Rebuild `api` or `ws` after changing Python or Erlang:
+
+```powershell
+docker compose up --build api ws
+```
+
+If port **5432** or **6379** is already in use (local Postgres/Redis), stop those processes or change the host ports in `docker-compose.yml`.
+
+Stop Compose with `Ctrl+C` in the foreground terminal, or `docker compose down`.
+
+## Run without Docker
 
 You need **three** processes: API, Erlang, and the static UI.
 
